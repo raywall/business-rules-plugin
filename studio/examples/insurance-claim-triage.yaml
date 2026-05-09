@@ -1,0 +1,108 @@
+name: Triagem de Sinistro
+description: Classifica uma abertura de sinistro para pagamento automatico ou revisao manual.
+
+input:
+  policy_id:
+    type: string
+    label: "Apolice"
+    example: "POL-7781"
+  claim_id:
+    type: string
+    label: "Sinistro"
+    example: "CLM-5512"
+  claimed_amount:
+    type: number
+    label: "Valor Reclamado"
+    example: 2400.00
+  incident_days_ago:
+    type: number
+    label: "Dias desde incidente"
+    example: 5.0
+
+mocks:
+  policy:
+    source: "GET /policies/{input.policy_id}"
+    data:
+      id: "POL-7781"
+      status: "ACTIVE"
+      coverage_limit: 5000.00
+      deductible: 300.00
+      automatic_claims_enabled: true
+
+  claim_documents:
+    source: "GET /claims/{input.claim_id}/documents"
+    data:
+      incident_report: true
+      photos_count: 4.0
+      invoice_attached: true
+
+  fraud_check:
+    source: "POST /fraud/claims"
+    data:
+      score: 22.0
+      repeated_incident: false
+      blocked_provider: false
+
+steps:
+  - name: Validar Entrada
+    condition: "input.policy_id != '' && input.claim_id != '' && input.claimed_amount > 0.0"
+    on_fail:
+      action: ABORT
+      message: "Sinistro sem dados obrigatorios"
+
+  - name: Buscar Apolice
+    use_mock: policy
+    assign: policy
+
+  - name: Verificar Cobertura
+    condition: "policy.status == 'ACTIVE' && policy.automatic_claims_enabled == true"
+    on_fail:
+      action: ABORT
+      message: "Apolice nao habilitada para triagem automatica"
+
+  - name: Validar Prazo
+    condition: "input.incident_days_ago <= 15.0"
+    on_fail:
+      action: ABORT
+      message: "Comunicao fora do prazo automatico"
+
+  - name: Validar Limite
+    condition: "input.claimed_amount <= policy.coverage_limit"
+    on_fail:
+      action: ABORT
+      message: "Valor acima do limite de cobertura"
+
+  - name: Conferir Documentos
+    use_mock: claim_documents
+    assign: docs
+    condition: "docs.incident_report == true && docs.photos_count >= 2.0 && docs.invoice_attached == true"
+    on_fail:
+      action: ABORT
+      message: "Documentacao insuficiente"
+
+  - name: Checagem Antifraude
+    use_mock: fraud_check
+    assign: fraud
+    condition: "fraud.score <= 60.0 && fraud.repeated_incident == false && fraud.blocked_provider == false"
+    on_fail:
+      action: ABORT
+      message: "Sinistro direcionado para revisao antifraude"
+
+  - name: Calcular Indenizacao
+    assign: payout
+    compute:
+      - name: deductible
+        expr: "policy.deductible"
+      - name: approved_amount
+        expr: "input.claimed_amount - policy.deductible"
+
+  - name: Aprovar Pagamento
+    result:
+      - name: status
+        expr: "'AUTO_APPROVED'"
+      - name: claim_id
+        expr: "input.claim_id"
+      - name: approved_amount
+        expr: "payout.approved_amount"
+      - name: deductible
+        expr: "payout.deductible"

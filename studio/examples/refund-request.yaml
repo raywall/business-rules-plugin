@@ -1,0 +1,112 @@
+name: Analise de Reembolso
+description: Decide se uma solicitacao de reembolso pode ser aprovada automaticamente.
+
+input:
+  purchase_id:
+    type: string
+    label: "Compra"
+    example: "PUR-2026-0042"
+  customer_id:
+    type: string
+    label: "Cliente"
+    example: "CUS-7788"
+  requested_amount:
+    type: number
+    label: "Valor Solicitado"
+    example: 129.90
+  days_since_purchase:
+    type: number
+    label: "Dias desde a compra"
+    example: 12.0
+
+mocks:
+  purchase:
+    source: "GET /purchases/{input.purchase_id}"
+    data:
+      id: "PUR-2026-0042"
+      status: "DELIVERED"
+      total_amount: 129.90
+      payment_method: "CREDIT_CARD"
+      digital_product: false
+
+  customer_history:
+    source: "GET /customers/{input.customer_id}/refund-history"
+    data:
+      refund_count_90d: 1.0
+      blocked: false
+      chargeback_count_180d: 0.0
+
+  support_ticket:
+    source: "GET /support/refunds/{input.purchase_id}"
+    data:
+      reason: "Produto com defeito"
+      evidence_attached: true
+      agent_priority: "NORMAL"
+
+steps:
+  - name: Validar Entrada
+    condition: "input.purchase_id != '' && input.customer_id != '' && input.requested_amount > 0.0"
+    on_fail:
+      action: ABORT
+      message: "Solicitacao incompleta"
+
+  - name: Buscar Compra
+    use_mock: purchase
+    assign: purchase
+
+  - name: Verificar Compra Elegivel
+    condition: "purchase.status == 'DELIVERED' && purchase.digital_product == false"
+    on_fail:
+      action: ABORT
+      message: "Compra nao elegivel para reembolso automatico"
+
+  - name: Validar Prazo
+    condition: "input.days_since_purchase <= 30.0"
+    on_fail:
+      action: ABORT
+      message: "Prazo de reembolso expirado"
+
+  - name: Validar Valor
+    condition: "input.requested_amount <= purchase.total_amount"
+    on_fail:
+      action: ABORT
+      message: "Valor solicitado maior que o valor da compra"
+
+  - name: Buscar Historico do Cliente
+    use_mock: customer_history
+    assign: history
+
+  - name: Avaliar Abuso
+    condition: "history.blocked == false && history.refund_count_90d <= 3.0 && history.chargeback_count_180d == 0.0"
+    on_fail:
+      action: ABORT
+      message: "Cliente precisa de revisao manual"
+
+  - name: Buscar Ticket
+    use_mock: support_ticket
+    assign: ticket
+
+  - name: Validar Evidencia
+    condition: "ticket.evidence_attached == true"
+    on_fail:
+      action: SKIP
+      message: "Sem evidencia anexada; seguir com reembolso parcial"
+
+  - name: Calcular Reembolso
+    assign: refund
+    compute:
+      - name: approved_amount
+        expr: "input.requested_amount"
+      - name: restocking_fee
+        expr: "0.0"
+
+  - name: Aprovar Reembolso
+    result:
+      - name: status
+        expr: "'APPROVED'"
+      - name: purchase_id
+        expr: "input.purchase_id"
+      - name: approved_amount
+        expr: "refund.approved_amount"
+      - name: payment_method
+        expr: "purchase.payment_method"

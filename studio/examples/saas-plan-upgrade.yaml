@@ -1,0 +1,105 @@
+name: Upgrade de Plano SaaS
+description: Simula regras para liberar um upgrade de plano com calculo de prorata.
+
+input:
+  account_id:
+    type: string
+    label: "Conta"
+    example: "ACC-2048"
+  requested_plan:
+    type: string
+    label: "Plano Solicitado"
+    example: "PRO"
+  seats_requested:
+    type: number
+    label: "Assentos"
+    example: 12.0
+  days_remaining:
+    type: number
+    label: "Dias Restantes"
+    example: 18.0
+
+mocks:
+  account:
+    source: "GET /accounts/{input.account_id}"
+    data:
+      id: "ACC-2048"
+      status: "ACTIVE"
+      current_plan: "STARTER"
+      seats_current: 5.0
+      billing_cycle_days: 30.0
+      overdue_invoice_count: 0.0
+
+  plan:
+    source: "GET /plans/{input.requested_plan}"
+    data:
+      code: "PRO"
+      active: true
+      monthly_price_per_seat: 49.0
+      min_seats: 3.0
+      max_seats: 100.0
+
+  compliance:
+    source: "GET /accounts/{input.account_id}/compliance"
+    data:
+      terms_accepted: true
+      data_processing_agreement: true
+      region: "BR"
+
+steps:
+  - name: Validar Entrada
+    condition: "input.account_id != '' && input.requested_plan != '' && input.seats_requested > 0.0"
+    on_fail:
+      action: ABORT
+      message: "Dados de upgrade incompletos"
+
+  - name: Buscar Conta
+    use_mock: account
+    assign: account
+
+  - name: Verificar Conta Ativa
+    condition: "account.status == 'ACTIVE' && account.overdue_invoice_count == 0.0"
+    on_fail:
+      action: ABORT
+      message: "Conta bloqueada para alteracoes de plano"
+
+  - name: Buscar Plano
+    use_mock: plan
+    assign: plan
+
+  - name: Validar Plano
+    condition: "plan.active == true && input.seats_requested >= plan.min_seats && input.seats_requested <= plan.max_seats"
+    on_fail:
+      action: ABORT
+      message: "Plano ou quantidade de assentos invalida"
+
+  - name: Validar Compliance
+    use_mock: compliance
+    assign: compliance
+    condition: "compliance.terms_accepted == true && compliance.data_processing_agreement == true"
+    on_fail:
+      action: ABORT
+      message: "Pendencia contratual impede upgrade"
+
+  - name: Calcular Prorata
+    assign: billing
+    compute:
+      - name: added_seats
+        expr: "input.seats_requested - account.seats_current"
+      - name: daily_price_per_seat
+        expr: "plan.monthly_price_per_seat / account.billing_cycle_days"
+      - name: prorated_charge
+        expr: "(input.seats_requested - account.seats_current) * (plan.monthly_price_per_seat / account.billing_cycle_days) * input.days_remaining"
+
+  - name: Confirmar Upgrade
+    result:
+      - name: status
+        expr: "'UPGRADE_APPROVED'"
+      - name: account_id
+        expr: "input.account_id"
+      - name: new_plan
+        expr: "plan.code"
+      - name: seats
+        expr: "input.seats_requested"
+      - name: prorated_charge
+        expr: "billing.prorated_charge"

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Business Rules Studio: editor YAML para simular regras de negocio." />
+  <title>Business Rules Studio</title>
+  <link rel="stylesheet" href="../plugin/process-plugin.css">
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="icon" href="data:,">
+</head>
+
+<body>
+  <aside class="studio-sidebar" aria-label="Editor de regras">
+    <div class="sidebar-panel">
+      <label class="editor-label" for="rulesSource">Rules YAML</label>
+      <div class="editor-frame" id="editorFrame">
+        <pre class="editor-lines" id="editorLineNumbers" aria-hidden="true">1</pre>
+        <textarea id="rulesSource" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+      </div>
+      <div class="editor-lint" id="editorLint" role="status">Validando YAML...</div>
+
+      <footer class="sidebar-footer">
+        <span id="editorStats">0 linhas</span>
+        <div class="sidebar-actions">
+          <input id="scriptFileInput" type="file" accept=".yaml,.yml,text/yaml,text/plain" hidden />
+          <button class="text-button" id="importScript" type="button">Carregar</button>
+          <button class="text-button" id="exportScript" type="button">.yaml</button>
+          <button class="text-button" id="restoreExample" type="button">Exemplo</button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="sidebar-rail">
+      <span class="rail-title">
+        <p class="eyebrow">Business Rules</p>
+        <h1>Studio</h1>
+      </span>
+    </div>
+  </aside>
+
+  <main class="studio-preview">
+    <header class="preview-toolbar">
+      <div>
+        <p class="eyebrow">Execucao</p>
+        <h2 id="rulesTitle">Simulador</h2>
+      </div>
+      <div class="preview-actions">
+        <button class="tool-button" id="toggleTheme" type="button">Light</button>
+        <button class="tool-button" id="setSerial" type="button">Serial</button>
+        <button class="tool-button" id="setEngine" type="button">Backend</button>
+        <button class="tool-button tool-button--primary" id="renderRules" type="button">Renderizar</button>
+      </div>
+    </header>
+
+    <section class="viewer-shell" aria-label="Simulador de regras">
+      <div id="viewer"></div>
+    </section>
+  </main>
+
+  <script>
+    const studioParams = new URLSearchParams(window.location.search);
+    const configuredEngine = studioParams.get('engine') || localStorage.getItem('PROCESS_ENGINE_URL');
+    const configuredSerial = studioParams.get('serial') || sessionStorage.getItem('PROCESS_ENGINE_SERIAL');
+
+    window.PROCESS_ENGINE_URL = configuredEngine || 'https://rules.raysouz.studio';
+    window.PROCESS_ENGINE_PROMPT_SERIAL = true;
+    if (studioParams.get('engine')) {
+      localStorage.setItem('PROCESS_ENGINE_URL', studioParams.get('engine'));
+    }
+    if (configuredSerial) {
+      window.PROCESS_ENGINE_SERIAL = configuredSerial;
+      sessionStorage.setItem('PROCESS_ENGINE_SERIAL', configuredSerial);
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+  <script src="../plugin/process-plugin.js"></script>
+  <script src="./studio.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,102 @@
+name: Roteamento de Ticket de Suporte
+description: Decide prioridade, fila e SLA de atendimento a partir de dados do cliente e do ticket.
+
+input:
+  ticket_id:
+    type: string
+    label: "Ticket"
+    example: "TCK-7001"
+  account_id:
+    type: string
+    label: "Conta"
+    example: "ACC-900"
+  severity:
+    type: string
+    label: "Severidade"
+    example: "HIGH"
+  impacted_users:
+    type: number
+    label: "Usuarios Impactados"
+    example: 45.0
+
+mocks:
+  account:
+    source: "GET /accounts/{input.account_id}"
+    data:
+      id: "ACC-900"
+      plan: "ENTERPRISE"
+      support_tier: "PREMIUM"
+      active: true
+      dedicated_manager: true
+
+  ticket:
+    source: "GET /support/tickets/{input.ticket_id}"
+    data:
+      category: "API"
+      created_outside_business_hours: false
+      has_logs: true
+      customer_temperature: "NORMAL"
+
+  incident_status:
+    source: "GET /status/incidents/current"
+    data:
+      active_incident: false
+      affected_component: ""
+
+steps:
+  - name: Validar Entrada
+    condition: "input.ticket_id != '' && input.account_id != '' && input.severity != ''"
+    on_fail:
+      action: ABORT
+      message: "Ticket sem dados obrigatorios"
+
+  - name: Buscar Conta
+    use_mock: account
+    assign: account
+
+  - name: Validar Conta
+    condition: "account.active == true"
+    on_fail:
+      action: ABORT
+      message: "Conta inativa nao recebe roteamento automatico"
+
+  - name: Buscar Ticket
+    use_mock: ticket
+    assign: ticket
+
+  - name: Conferir Logs
+    condition: "ticket.has_logs == true"
+    on_fail:
+      action: CONTINUE
+      message: "Ticket sem logs; adicionar tarefa de coleta"
+
+  - name: Checar Incidente Global
+    use_mock: incident_status
+    assign: incident
+    condition: "incident.active_incident == false"
+    on_fail:
+      action: SKIP
+      message: "Associar ao incidente global ativo"
+
+  - name: Calcular SLA
+    assign: routing
+    compute:
+      - name: priority_score
+        expr: "input.impacted_users * 2.0"
+      - name: sla_minutes
+        expr: "60.0"
+
+  - name: Roteamento Final
+    result:
+      - name: status
+        expr: "'ROUTED'"
+      - name: ticket_id
+        expr: "input.ticket_id"
+      - name: queue
+        expr: "ticket.category"
+      - name: support_tier
+        expr: "account.support_tier"
+      - name: sla_minutes
+        expr: "routing.sla_minutes"
+      - name: priority_score
+        expr: "routing.priority_score"

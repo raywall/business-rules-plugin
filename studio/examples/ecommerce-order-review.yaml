@@ -1,0 +1,113 @@
+name: Revisao de Pedido E-commerce
+description: Avalia risco, estoque e limite operacional antes de aprovar um pedido online.
+
+input:
+  customer_id:
+    type: string
+    label: "Cliente"
+    example: "CUS-1001"
+  order_id:
+    type: string
+    label: "Pedido"
+    example: "ORD-9001"
+  order_total:
+    type: number
+    label: "Valor do Pedido"
+    example: 849.90
+  coupon_code:
+    type: string
+    label: "Cupom"
+    example: "WELCOME10"
+
+mocks:
+  customer:
+    source: "GET /customers/{input.customer_id}"
+    data:
+      id: "CUS-1001"
+      status: "ACTIVE"
+      email_verified: true
+      risk_score: 18.0
+      lifetime_orders: 7.0
+
+  inventory:
+    source: "GET /inventory/reservations/{input.order_id}"
+    data:
+      available: true
+      reserved_items: 3.0
+      warehouse: "SP-01"
+
+  coupon:
+    source: "GET /coupons/{input.coupon_code}"
+    data:
+      code: "WELCOME10"
+      active: true
+      discount_percent: 10.0
+      min_order_total: 200.0
+
+steps:
+  - name: Validar Entrada
+    description: "Confirma dados minimos para avaliar o pedido"
+    condition: "input.customer_id != '' && input.order_id != '' && input.order_total > 0.0"
+    on_fail:
+      action: ABORT
+      message: "Pedido sem dados obrigatorios"
+
+  - name: Buscar Cliente
+    description: "Carrega o perfil operacional do cliente"
+    use_mock: customer
+    assign: customer
+
+  - name: Validar Cliente
+    description: "Cliente precisa estar ativo e com email verificado"
+    condition: "customer.status == 'ACTIVE' && customer.email_verified == true"
+    on_fail:
+      action: ABORT
+      message: "Cliente nao esta habilitado para compra"
+
+  - name: Avaliar Risco
+    description: "Pedidos com risco alto seguem para revisao manual"
+    condition: "customer.risk_score <= 70.0"
+    on_fail:
+      action: ABORT
+      message: "Pedido enviado para revisao manual por risco elevado"
+
+  - name: Verificar Estoque
+    description: "Confirma reserva dos itens do pedido"
+    use_mock: inventory
+    assign: inventory
+    condition: "inventory.available == true && inventory.reserved_items > 0.0"
+    on_fail:
+      action: ABORT
+      message: "Estoque indisponivel para o pedido"
+
+  - name: Validar Cupom
+    description: "Aplica cupom apenas se estiver ativo e atingir o valor minimo"
+    use_mock: coupon
+    assign: coupon
+    condition: "coupon.active == true && input.order_total >= coupon.min_order_total"
+    on_fail:
+      action: SKIP
+      message: "Cupom ignorado por regra comercial"
+
+  - name: Calcular Totais
+    description: "Calcula desconto e total final"
+    assign: totals
+    compute:
+      - name: discount_value
+        expr: "input.order_total * coupon.discount_percent / 100.0"
+      - name: final_total
+        expr: "input.order_total - (input.order_total * coupon.discount_percent / 100.0)"
+
+  - name: Aprovar Pedido
+    description: "Retorna a decisao final para checkout"
+    result:
+      - name: status
+        expr: "'APPROVED'"
+      - name: order_id
+        expr: "input.order_id"
+      - name: warehouse
+        expr: "inventory.warehouse"
+      - name: discount_value
+        expr: "totals.discount_value"
+      - name: final_total
+        expr: "totals.final_total"
