@@ -45,6 +45,11 @@
   function renderRules() {
     const parsed = lintYaml();
     if (!parsed.ok) return;
+    if (!window.ProcessPlugin || typeof window.ProcessPlugin.init !== 'function') {
+      lint.textContent = 'Plugin web nao carregado. Verifique se /plugin/process-plugin.js esta publicado.';
+      lint.className = 'editor-lint is-error';
+      return;
+    }
 
     title.textContent = parsed.data.name || 'Simulador';
     viewer.innerHTML = [

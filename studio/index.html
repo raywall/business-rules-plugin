@@ -2,6 +2,16 @@
 <html lang="pt-BR">
 
 <head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-M75S9C0W4B"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-M75S9C0W4B');
+  </script>
+
   <meta charset="UTF-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
@@ -16,6 +26,13 @@
 
 <body>
   <aside class="studio-sidebar" aria-label="Editor de regras">
+    <header>
+      <div class="sidebar-title">
+        <p class="eyebrow">Business Rules</p>
+        <h1>Studio</h1>
+      </div>
+    </header>
+    
     <div class="sidebar-panel">
       <label class="editor-label" for="rulesSource">Rules YAML</label>
       <div class="editor-frame" id="editorFrame">
@@ -35,12 +52,7 @@
       </footer>
     </div>
 
-    <div class="sidebar-rail">
-      <span class="rail-title">
-        <p class="eyebrow">Business Rules</p>
-        <h1>Studio</h1>
-      </span>
-    </div>
+    <div class="sidebar-rail"></div>
   </aside>
 
   <main class="studio-preview">

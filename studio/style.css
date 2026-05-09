@@ -57,12 +57,41 @@ body {
   min-height: 0;
   height: 100vh;
   display: grid;
-  grid-template-columns: 1fr 56px;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "title rail"
+    "panel rail";
   border-right: 1px solid var(--studio-border);
   background: var(--studio-panel);
 }
 
+.studio-sidebar > header {
+  grid-area: title;
+  min-width: 0;
+}
+
+.sidebar-title {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--studio-border);
+  background: var(--studio-panel-2);
+}
+
+.sidebar-title > * {
+  justify-self: start;
+}
+
+.sidebar-title h1 {
+  margin: 3px 0 0;
+  font-size: 20px;
+}
+
 .sidebar-panel {
+  grid-area: panel;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -188,6 +217,7 @@ button:hover {
 }
 
 .sidebar-rail {
+  grid-area: rail;
   display: flex;
   align-items: flex-end;
   justify-content: center;

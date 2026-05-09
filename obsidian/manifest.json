@@ -1,0 +1,9 @@
+{
+  "id": "business-rules-emulator",
+  "name": "Business Rules Emulator",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Renderiza blocos ```rules como simuladores interativos de regras de negócio.",
+  "author": "raywall",
+  "isDesktopOnly": false
+}

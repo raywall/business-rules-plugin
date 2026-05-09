@@ -27,6 +27,16 @@ jobs:
       - name: configurar github pages
         uses: actions/configure-pages@v5
 
+      - name: validar assets do studio
+        shell: bash
+        run: |
+          test -f index.html
+          test -f studio/index.html
+          test -f studio/studio.js
+          test -f studio/style.css
+          test -f plugin/process-plugin.js
+          test -f plugin/process-plugin.css
+
       - name: montar artefato
         shell: bash
         run: |
