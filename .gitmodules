@@ -1,0 +1,9 @@
+[submodule "obsidian"]
+	path = obsidian
+	url = https://github.com/raywall/business-rules-emulator
+[submodule "script"]
+	path = script
+	url = https://github.com/raywall/business-rules-emulator
+[submodule "plugin"]
+	path = plugin
+	url = https://github.com/raywall/business-rules-emulator
