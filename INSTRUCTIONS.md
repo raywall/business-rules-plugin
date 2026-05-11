@@ -60,6 +60,7 @@ input:
   campo:
     type: string
     label: "Campo"
+    description: "Texto de ajuda exibido como tooltip no label"
     example: "valor inicial"
 
 mocks:
@@ -109,7 +110,12 @@ Cada campo possui:
 
 - `type`: `string`, `number` ou `boolean`.
 - `label`: nome exibido no formulário.
+- `description`: texto opcional exibido como tooltip ao passar o mouse sobre o label.
 - `example`: valor inicial usado no formulário.
+
+Labels muito longos sao cortados visualmente com `...` para preservar o layout.
+Use `description` para explicar o campo com mais liberdade sem aumentar o
+tamanho da tela.
 
 Os valores ficam disponíveis nas expressoes pelo objeto `input`.
 
@@ -318,14 +324,17 @@ input:
   customer_id:
     type: string
     label: "Cliente"
+    description: "Identificador usado para buscar status e risco do cliente."
     example: "CUS-1001"
   order_id:
     type: string
     label: "Pedido"
+    description: "Identificador usado para consultar estoque e rastrear a decisao."
     example: "ORD-9001"
   order_total:
     type: number
     label: "Valor do Pedido"
+    description: "Valor bruto do pedido antes de taxas e descontos."
     example: 849.90
 
 mocks:
@@ -408,4 +417,3 @@ steps:
 - Evite colocar dados sensíveis reais nos mocks.
 - Use exemplos pequenos o suficiente para serem lidos na tela, mas completos o
   bastante para testar decisoes importantes.
-

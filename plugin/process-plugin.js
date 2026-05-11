@@ -3,7 +3,7 @@
  *
  * Usage (add to your Jekyll _layouts/default.html or any HTML page):
  *
- *   <script>window.PROCESS_ENGINE_URL = 'https://YOUR_LAMBDA_URL';</script>
+ *   <script>window.PROCESS_ENGINE_URL = 'https://rules.raysouz.studio';</script>
  *   <script>window.PROCESS_ENGINE_SERIAL = 'uuid-da-assinatura';</script>
  *   <link  rel="stylesheet" href="/assets/process-plugin.css">
  *   <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
@@ -19,7 +19,7 @@
   'use strict';
 
   /* ── Configuration ─────────────────────────────────────────────────────── */
-  const LAMBDA_URL = normalizeEngineUrl(window.PROCESS_ENGINE_URL || 'http://localhost:8080');
+  const LAMBDA_URL = normalizeEngineUrl(window.PROCESS_ENGINE_URL || 'https://rules.raysouz.studio');
   const STEP_DELAY_MS = 380;   // delay between step card reveals
   const RESULT_DELAY_MS = 600; // extra delay before final result card
 
@@ -160,10 +160,17 @@
       const grid = el('div', { class: 'pe-inputs-grid' });
       for (const [key, field] of Object.entries(proc.input)) {
         const wrap2 = el('div', { class: 'pe-field' });
-        const label = el('label', { class: 'pe-label', for: `${id}-in-${key}` });
-        label.textContent = field.label || key;
+        const labelText = field.label || key;
+        const label = el('label', {
+          class: 'pe-label',
+          for: `${id}-in-${key}`,
+          title: field.description || labelText,
+        });
+        const labelContent = el('span', { class: 'pe-label-text' });
+        labelContent.textContent = labelText;
         const badge = el('span', { class: `pe-type-badge pe-type-${field.type || 'string'}` });
         badge.textContent = field.type || 'string';
+        label.appendChild(labelContent);
         label.appendChild(badge);
         const input = el('input', {
           class: 'pe-input',

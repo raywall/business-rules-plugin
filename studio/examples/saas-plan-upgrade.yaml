@@ -5,18 +5,22 @@ input:
   account_id:
     type: string
     label: "Conta"
+    description: "Conta que solicitou a alteracao de plano."
     example: "ACC-2048"
   requested_plan:
     type: string
     label: "Plano Solicitado"
+    description: "Plano desejado pelo cliente."
     example: "PRO"
   seats_requested:
     type: number
     label: "Assentos"
+    description: "Quantidade de assentos solicitados no novo plano."
     example: 12.0
   days_remaining:
     type: number
     label: "Dias Restantes"
+    description: "Dias restantes no ciclo atual para calculo de prorata."
     example: 18.0
 
 mocks:

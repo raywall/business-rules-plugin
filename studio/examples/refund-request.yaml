@@ -5,18 +5,22 @@ input:
   purchase_id:
     type: string
     label: "Compra"
+    description: "Identificador da compra que originou o pedido de reembolso."
     example: "PUR-2026-0042"
   customer_id:
     type: string
     label: "Cliente"
+    description: "Cliente solicitante do reembolso."
     example: "CUS-7788"
   requested_amount:
     type: number
     label: "Valor Solicitado"
+    description: "Valor que o cliente deseja receber de volta."
     example: 129.90
   days_since_purchase:
     type: number
     label: "Dias desde a compra"
+    description: "Quantidade de dias desde a data da compra original."
     example: 12.0
 
 mocks:

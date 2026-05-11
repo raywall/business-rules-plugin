@@ -15,25 +15,14 @@ Copie estes arquivos para uma pasta do seu vault:
 
 Depois habilite o plugin em `Settings > Community plugins`.
 
-## Configurar a Lambda
+## Configurar
 
 Em `Settings > Business Rules Emulator`, configure:
 
-- `Engine URL` com a URL publica da Lambda, sem o caminho `/simulate`.
 - `Numero de serie` com um serial ativo da assinatura.
 - `Estilo` como `Dark` ou `Clear`.
 
-Exemplo:
-
-```text
-https://XXXX.lambda-url.us-east-1.on.aws
-```
-
-Para desenvolvimento local, use:
-
-```text
-http://localhost:8080
-```
+O endpoint do backend e fixo em `https://rules.raysouz.studio`.
 
 ## Usar em uma nota
 
@@ -41,43 +30,45 @@ Crie um bloco:
 
 ````markdown
 ```rules
-name: Processamento de Parcela CLT
-description: Fluxo de desconto em folha do credito do trabalhador
+name: Roteamento de Ticket
+description: Decide prioridade e fila de atendimento.
 
 input:
-  matricula:
+  ticket_id:
     type: string
-    label: "Matricula do Funcionario"
-    example: "12345"
-  valor_parcela:
+    label: "Ticket de suporte com label longo"
+    description: "Identificador do ticket aberto pelo cliente."
+    example: "TCK-7001"
+  impacted_users:
     type: number
-    label: "Valor da Parcela"
-    example: 500.00
+    label: "Usuarios Impactados"
+    description: "Quantidade estimada de usuarios afetados."
+    example: 45.0
 
 mocks:
-  funcionario:
-    source: "GET /api/v1/rh/funcionarios/{input.matricula}"
+  ticket:
+    source: "GET /support/tickets/{input.ticket_id}"
     data:
-      nome: "Joao Silva"
-      situacao: "ATIVO"
-      vinculo: "CLT"
-      margem_disponivel: 1500.00
+      category: "API"
+      has_logs: true
 
 steps:
-  - name: Buscar Funcionario
-    use_mock: funcionario
-    assign: func
+  - name: Buscar Ticket
+    use_mock: ticket
+    assign: ticket
 
-  - name: Verificar Elegibilidade
-    condition: "func.situacao == 'ATIVO' && func.vinculo == 'CLT'"
+  - name: Conferir Logs
+    condition: "ticket.has_logs == true"
     on_fail:
       action: ABORT
-      message: "Funcionario inelegivel"
+      message: "Ticket sem logs"
 
-  - name: Aprovar
+  - name: Roteamento Final
     result:
       - name: status
-        expr: "'APROVADO'"
+        expr: "'ROUTED'"
+      - name: queue
+        expr: "ticket.category"
 ```
 ````
 

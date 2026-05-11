@@ -33,6 +33,7 @@ O studio permite:
 - validar estrutura basica do script
 - alternar tema dark/light
 - carregar e exportar YAML
+- renderizar o script pelo rodape do editor
 - renderizar a tela de simulacao no painel principal
 
 Nenhum serial de teste fica publicado no studio. Configure o serial pelo botao
@@ -49,6 +50,8 @@ Tambem e possivel configurar o backend:
 ```text
 http://localhost:5173/studio/?engine=https://rules.raysouz.studio
 ```
+
+Se nenhum backend for informado, o Studio usa `https://rules.raysouz.studio`.
 
 ## Plugin Web
 
@@ -95,15 +98,22 @@ make build
 
 No Obsidian, configure:
 
-- `Engine URL`
 - `Numero de serie`
 - tema `Dark` ou `Clear`
+
+O endpoint do backend no Obsidian e fixo em `https://rules.raysouz.studio`.
 
 Use em uma nota:
 
 ````markdown
 ```rules
 name: Meu Processo
+input:
+  customer_id:
+    type: string
+    label: "Cliente com um label longo"
+    description: "Descricao exibida como tooltip ao passar o mouse sobre o label."
+    example: "CUS-1001"
 steps:
   - name: Final
     result:

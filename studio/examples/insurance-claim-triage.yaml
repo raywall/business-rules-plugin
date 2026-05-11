@@ -5,18 +5,22 @@ input:
   policy_id:
     type: string
     label: "Apolice"
+    description: "Identificador da apolice usada para verificar cobertura."
     example: "POL-7781"
   claim_id:
     type: string
     label: "Sinistro"
+    description: "Identificador do sinistro em triagem."
     example: "CLM-5512"
   claimed_amount:
     type: number
     label: "Valor Reclamado"
+    description: "Valor solicitado pelo segurado."
     example: 2400.00
   incident_days_ago:
     type: number
     label: "Dias desde incidente"
+    description: "Tempo entre o incidente e a abertura do sinistro."
     example: 5.0
 
 mocks:

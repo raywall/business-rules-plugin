@@ -180,6 +180,15 @@
   display: flex;
   align-items: center;
   gap: .4rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.pe-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pe-type-badge {
@@ -188,6 +197,7 @@
   padding: .1em .4em;
   border-radius: 4px;
   font-weight: 400;
+  flex-shrink: 0;
 }
 
 .pe-type-string {

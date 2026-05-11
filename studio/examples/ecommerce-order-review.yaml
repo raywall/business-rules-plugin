@@ -5,18 +5,22 @@ input:
   customer_id:
     type: string
     label: "Cliente"
+    description: "Identificador do cliente usado para buscar perfil, status e risco."
     example: "CUS-1001"
   order_id:
     type: string
     label: "Pedido"
+    description: "Identificador do pedido usado para verificar reserva de estoque."
     example: "ORD-9001"
   order_total:
     type: number
     label: "Valor do Pedido"
+    description: "Valor bruto do pedido antes de aplicar descontos."
     example: 849.90
   coupon_code:
     type: string
     label: "Cupom"
+    description: "Codigo promocional informado no checkout."
     example: "WELCOME10"
 
 mocks:

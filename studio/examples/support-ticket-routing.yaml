@@ -5,18 +5,22 @@ input:
   ticket_id:
     type: string
     label: "Ticket"
+    description: "Identificador do ticket aberto pelo cliente."
     example: "TCK-7001"
   account_id:
     type: string
     label: "Conta"
+    description: "Conta usada para consultar plano e nivel de suporte."
     example: "ACC-900"
   severity:
     type: string
     label: "Severidade"
+    description: "Classificacao inicial informada na abertura do ticket."
     example: "HIGH"
   impacted_users:
     type: number
     label: "Usuarios Impactados"
+    description: "Quantidade estimada de usuarios afetados pelo problema."
     example: 45.0
 
 mocks:

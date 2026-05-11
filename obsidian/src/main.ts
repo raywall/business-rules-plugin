@@ -9,7 +9,6 @@ import {
 } from 'obsidian';
 
 interface RulesPluginSettings {
-  engineUrl: string;
   serialNumber: string;
   theme: 'dark' | 'clear';
 }
@@ -17,6 +16,7 @@ interface RulesPluginSettings {
 interface InputField {
   type?: 'string' | 'number' | 'boolean' | string;
   label?: string;
+  description?: string;
   example?: unknown;
 }
 
@@ -54,11 +54,11 @@ interface SimulationResult {
 }
 
 const DEFAULT_SETTINGS: RulesPluginSettings = {
-  engineUrl: 'http://localhost:8080',
   serialNumber: '',
   theme: 'dark',
 };
 
+const ENGINE_URL = 'https://rules.raysouz.studio';
 const STEP_DELAY_MS = 380;
 const RESULT_DELAY_MS = 600;
 
@@ -166,10 +166,17 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
     const grid = section.createDiv({ cls: 'pe-inputs-grid' });
     Object.entries(proc.input).forEach(([key, field]) => {
       const fieldWrap = grid.createDiv({ cls: 'pe-field' });
+      const labelText = field.label || key;
       const label = fieldWrap.createEl('label', {
         cls: 'pe-label',
-        text: field.label || key,
-        attr: { for: `${id}-in-${key}` },
+        attr: {
+          for: `${id}-in-${key}`,
+          title: field.description || labelText,
+        },
+      });
+      label.createSpan({
+        cls: 'pe-label-text',
+        text: labelText,
       });
       label.createSpan({
         cls: `pe-type-badge pe-type-${field.type || 'string'}`,
@@ -445,7 +452,7 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
   }
 
   private engineBaseUrl(): string {
-    return this.settings.engineUrl.trim().replace(/\/+$/, '').replace(/\/simulate$/, '');
+    return ENGINE_URL;
   }
 }
 
@@ -462,19 +469,6 @@ class RulesSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     containerEl.createEl('h2', { text: 'Business Rules Emulator' });
-
-    new Setting(containerEl)
-      .setName('Engine URL')
-      .setDesc('URL pública da Lambda ou servidor local que expõe POST /simulate.')
-      .addText((text) =>
-        text
-          .setPlaceholder('https://XXXX.lambda-url.us-east-1.on.aws')
-          .setValue(this.plugin.settings.engineUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.engineUrl = value.trim() || DEFAULT_SETTINGS.engineUrl;
-            await this.plugin.saveSettings();
-          })
-      );
 
     new Setting(containerEl)
       .setName('Número de série')
