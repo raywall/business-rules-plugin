@@ -115,6 +115,8 @@ steps:
 ## GitHub Pages
 
 O workflow `.github/workflows/docs.yml` publica o studio no GitHub Pages.
+Ele roda automaticamente depois que o workflow `release` termina com sucesso,
+e tambem pode ser executado manualmente.
 
 Ele publica apenas:
 
@@ -125,3 +127,20 @@ Ele publica apenas:
 Assim `studio/index.html` consegue carregar `../plugin/process-plugin.js` e
 `../plugin/process-plugin.css` sem levar `node_modules` ou arquivos de build do
 Obsidian para o Pages.
+
+## Releases
+
+O workflow `.github/workflows/release.yml` roda em push na branch `main` ou
+manualmente pelo GitHub Actions.
+
+Ele publica uma GitHub Release com:
+
+- `process-plugin.js`
+- `process-plugin.css`
+- pacote `.zip` e `.tar.gz` do plugin web
+- `main.js`, `manifest.json` e `styles.css` do plugin Obsidian
+- pacote `.zip` e `.tar.gz` do plugin Obsidian
+
+Quando executado manualmente, e possivel informar uma tag como `v1.0.0`. Se a
+tag ficar vazia, o workflow gera uma tag automatica no formato
+`vYYYY.MM.DD-NUMERO_DA_RUN`.

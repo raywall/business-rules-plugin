@@ -1,9 +1,11 @@
 name: docs
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - release
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -19,10 +21,13 @@ jobs:
   build:
     name: gerar pages
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: baixar codigo
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: configurar github pages
         uses: actions/configure-pages@v5

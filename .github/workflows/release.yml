@@ -1,0 +1,100 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag da release, por exemplo v1.0.0. Se vazio, uma tag automatica sera criada."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: criar release do business-rules-plugin
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: baixar codigo
+        uses: actions/checkout@v4
+
+      - name: configurar node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: obsidian/package-lock.json
+
+      - name: definir versao
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="v$(date -u +'%Y.%m.%d')-${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: validar assets do plugin web
+        shell: bash
+        run: |
+          test -f plugin/process-plugin.js
+          test -f plugin/process-plugin.css
+
+      - name: instalar dependencias do obsidian
+        working-directory: obsidian
+        run: npm ci
+
+      - name: gerar build do obsidian
+        working-directory: obsidian
+        run: npm run build
+
+      - name: preparar pacote do plugin web
+        shell: bash
+        run: |
+          mkdir -p dist/business-rules-plugin-web
+          cp plugin/process-plugin.js dist/business-rules-plugin-web/process-plugin.js
+          cp plugin/process-plugin.css dist/business-rules-plugin-web/process-plugin.css
+
+          tar -czf "business-rules-plugin-web-${{ steps.version.outputs.version }}.tar.gz" -C dist business-rules-plugin-web
+          (cd dist && zip -r "../business-rules-plugin-web-${{ steps.version.outputs.version }}.zip" business-rules-plugin-web)
+
+      - name: preparar pacote do obsidian
+        shell: bash
+        run: |
+          test -f obsidian/main.js
+          test -f obsidian/manifest.json
+          test -f obsidian/styles.css
+
+          mkdir -p dist/business-rules-emulator-obsidian
+          cp obsidian/main.js dist/business-rules-emulator-obsidian/main.js
+          cp obsidian/manifest.json dist/business-rules-emulator-obsidian/manifest.json
+          cp obsidian/styles.css dist/business-rules-emulator-obsidian/styles.css
+
+          tar -czf "business-rules-emulator-obsidian-${{ steps.version.outputs.version }}.tar.gz" -C dist business-rules-emulator-obsidian
+          (cd dist && zip -r "../business-rules-emulator-obsidian-${{ steps.version.outputs.version }}.zip" business-rules-emulator-obsidian)
+
+      - name: criar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            "plugin/process-plugin.css#process-plugin.css" \
+            "plugin/process-plugin.js#process-plugin.js" \
+            "obsidian/main.js#obsidian-main.js" \
+            "obsidian/manifest.json#obsidian-manifest.json" \
+            "obsidian/styles.css#obsidian-styles.css" \
+            "business-rules-plugin-web-${{ steps.version.outputs.version }}.tar.gz" \
+            "business-rules-plugin-web-${{ steps.version.outputs.version }}.zip" \
+            "business-rules-emulator-obsidian-${{ steps.version.outputs.version }}.tar.gz" \
+            "business-rules-emulator-obsidian-${{ steps.version.outputs.version }}.zip" \
+            --title "business-rules-plugin ${{ steps.version.outputs.version }}" \
+            --notes "Release gerada a partir da branch main contendo o plugin web e o pacote do plugin Obsidian."
