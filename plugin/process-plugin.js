@@ -48,6 +48,8 @@
      and replace each with the interactive widget.
   ════════════════════════════════════════════════════════════════════════ */
   function init() {
+    void getCryptoSecret().catch(() => {});
+
     // Cover the different HTML structures GitHub Pages / kramdown may produce
     const candidates = [
       ...document.querySelectorAll('code.language-process'),
@@ -320,26 +322,25 @@
 
     try {
       const currentScript = getCurrentScriptRef();
+      const body = await secureRequestBody({
+        service: currentScript?.service,
+        usecase: currentScript?.usecase,
+        yaml,
+        input: inputData,
+        mock_overrides: mockOverrides,
+        linked_scripts: linkedScripts,
+      });
       const res = await fetch(`${LAMBDA_URL}/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serial_number: serialNumber,
-          service: currentScript?.service,
-          usecase: currentScript?.usecase,
-          yaml,
-          input: inputData,
-          mock_overrides: mockOverrides,
-          linked_scripts: linkedScripts,
-        }),
+        body: JSON.stringify({ serial_number: serialNumber, encrypted: true, payload: body }),
       });
 
+      const responseText = await res.text();
+      const result = await readSecureResponse(responseText);
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text}`);
+        throw new Error(`HTTP ${res.status}: ${result?.error || responseText}`);
       }
-
-      const result = await res.json();
       await renderTrace(id, result);
       setStatus(statusEl, '', '');
     } catch (e) {
@@ -368,6 +369,69 @@
       service: String(ref.service),
       usecase: String(ref.usecase),
     };
+  }
+
+  async function secureRequestBody(payload) {
+    const secret = await getCryptoSecret();
+    return encryptJSON(secret, payload);
+  }
+
+  async function readSecureResponse(text) {
+    const body = JSON.parse(text);
+    if (!body?.encrypted) return body;
+    const secret = await getCryptoSecret();
+    return decryptJSON(secret, body.payload);
+  }
+
+  async function getCryptoSecret() {
+    const storageKey = `PROCESS_ENGINE_CRYPTO_SECRET:${LAMBDA_URL}`;
+    const cached = String(window.PROCESS_ENGINE_CRYPTO_SECRET || localStorage.getItem(storageKey) || '').trim();
+    if (cached) return cached;
+
+    const res = await fetch(`${LAMBDA_URL}/crypto-key`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    const body = await res.json();
+    if (!res.ok || !body?.key) {
+      throw new Error(body?.error || 'Chave de criptografia indisponível');
+    }
+    const key = String(body.key).trim();
+    window.PROCESS_ENGINE_CRYPTO_SECRET = key;
+    localStorage.setItem(storageKey, key);
+    return key;
+  }
+
+  async function encryptJSON(secret, value) {
+    const key = await cryptoKey(secret);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plain = new TextEncoder().encode(JSON.stringify(value));
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain);
+    return { iv: bytesToBase64(iv), data: bytesToBase64(new Uint8Array(encrypted)) };
+  }
+
+  async function decryptJSON(secret, payload) {
+    const key = await cryptoKey(secret);
+    const iv = base64ToBytes(payload.iv);
+    const data = base64ToBytes(payload.data);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+    return JSON.parse(new TextDecoder().decode(plain));
+  }
+
+  async function cryptoKey(secret) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+    return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = '';
+    bytes.forEach(byte => binary += String.fromCharCode(byte));
+    return btoa(binary);
+  }
+
+  function base64ToBytes(base64) {
+    const binary = atob(base64);
+    return Uint8Array.from(binary, char => char.charCodeAt(0));
   }
 
   function getSerialNumber() {

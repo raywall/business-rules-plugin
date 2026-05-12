@@ -165,6 +165,7 @@ o painel e ganhar mais espaço vertical para o editor. Clique novamente
 Um script completo segue esta estrutura:
 
 ```
+id: "00000000-0000-4000-a000-000000000001"
 name: Nome do processo
 description: Descricao opcional do processo
 
@@ -192,6 +193,8 @@ steps:
 
 Campos principais:
 
+- `id`: identificador unico global do script. **Obrigatorio** para catalogacao
+  no backend e para nomear o arquivo versionado no S3.
 - `name`: nome do processo. **Obrigatorio**.
 - `description`: texto opcional exibido como apoio.
 - `input`: campos que viram formulário de entrada.

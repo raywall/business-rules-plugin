@@ -10,6 +10,7 @@ import {
 
 interface RulesPluginSettings {
   serialNumber: string;
+  cryptoKey?: string;
   theme: 'dark' | 'clear';
 }
 
@@ -84,6 +85,7 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    void this.getCryptoSecret().catch(() => {});
     this.addSettingTab(new RulesSettingTab(this.app, this));
 
     this.registerMarkdownCodeBlockProcessor('rules', async (source, el) => {
@@ -276,23 +278,28 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
     resultEl.style.display = 'none';
 
     try {
+      const cryptoSecret = await this.getCryptoSecret();
+      const payload = await encryptJSON(cryptoSecret, {
+        yaml,
+        input: inputData,
+        mock_overrides: mockOverrides,
+      });
       const response = await requestUrl({
         url: `${this.engineBaseUrl()}/simulate`,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           serial_number: this.settings.serialNumber.trim(),
-          yaml,
-          input: inputData,
-          mock_overrides: mockOverrides,
+          encrypted: true,
+          payload,
         }),
       });
 
+      const result = await decryptResponse(cryptoSecret, response.text) as SimulationResult;
       if (response.status < 200 || response.status >= 300) {
-        throw new Error(`HTTP ${response.status}: ${response.text}`);
+        const errorResult = result as unknown as { error?: string };
+        throw new Error(`HTTP ${response.status}: ${errorResult.error || response.text}`);
       }
-
-      const result = JSON.parse(response.text) as SimulationResult;
       await this.renderTrace(id, result);
       this.setStatus(statusEl, '', '');
     } catch (error) {
@@ -454,6 +461,24 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
   private engineBaseUrl(): string {
     return ENGINE_URL;
   }
+
+  private async getCryptoSecret(): Promise<string> {
+    const cached = String(this.settings.cryptoKey || '').trim();
+    if (cached) return cached;
+
+    const response = await requestUrl({
+      url: `${this.engineBaseUrl()}/crypto-key`,
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    const body = JSON.parse(response.text) as { key?: string; error?: string };
+    if (response.status < 200 || response.status >= 300 || !body.key) {
+      throw new Error(body.error || 'Chave de criptografia indisponível');
+    }
+    this.settings.cryptoKey = body.key.trim();
+    await this.saveSettings();
+    return this.settings.cryptoKey;
+  }
 }
 
 class RulesSettingTab extends PluginSettingTab {
@@ -501,4 +526,48 @@ class RulesSettingTab extends PluginSettingTab {
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function decryptResponse(secret: string, text: string): Promise<unknown> {
+  const body = JSON.parse(text);
+  if (!body?.encrypted) return body;
+  return decryptJSON(secret, body.payload);
+}
+
+async function encryptJSON(secret: string, value: unknown): Promise<{ iv: string; data: string }> {
+  if (!secret) throw new Error('Chave de criptografia indisponível');
+  const key = await cryptoKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plain = new TextEncoder().encode(JSON.stringify(value));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain);
+  return { iv: bytesToBase64(iv), data: bytesToBase64(new Uint8Array(encrypted)) };
+}
+
+async function decryptJSON(secret: string, payload: { iv: string; data: string }): Promise<unknown> {
+  if (!secret) throw new Error('Chave de criptografia indisponível');
+  const key = await cryptoKey(secret);
+  const iv = base64ToBytes(payload.iv) as unknown as BufferSource;
+  const data = base64ToBytes(payload.data) as unknown as BufferSource;
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    data
+  );
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+async function cryptoKey(secret: string): Promise<CryptoKey> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  bytes.forEach((byte) => binary += String.fromCharCode(byte));
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }

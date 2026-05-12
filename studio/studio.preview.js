@@ -177,6 +177,7 @@ Object.assign(Actions, {
     el.viewer.classList.add('viewer--macro');
     const graph = await Flowchart.build(doc);
     el.viewer.innerHTML = Flowchart.render(graph);
+    initFlowchartInteraction(el.viewer.querySelector('.flowchart-canvas'));
   },
 
   toggleTheme() {
@@ -305,10 +306,10 @@ const Flowchart = {
 
   render(graph) {
     const levels = groupByDepth(graph.nodes);
-    const nodeWidth = 210;
-    const nodeHeight = 74;
-    const xGap = 290;
-    const yGap = 118;
+    const nodeWidth = 250;
+    const nodeHeight = Math.max(104, 70 + maxWrappedLabelLines(graph.nodes, 26) * 17);
+    const xGap = 330;
+    const yGap = 150;
     const margin = 48;
     const positions = new Map();
     const maxDepth = Math.max(0, ...graph.nodes.map(node => node.depth));
@@ -332,15 +333,13 @@ const Flowchart = {
 
     return `
       <section class="flowchart-view" aria-label="Visualizacao macro dos microservicos">
-        <div class="flowchart-header">
-          <div>
-            <p class="eyebrow">Flowchart</p>
-            <h3>${hasLinks ? 'Esteira end-to-end' : 'Usecase isolado'}</h3>
-          </div>
-          <span>${graph.nodes.length} node${graph.nodes.length === 1 ? '' : 's'}</span>
-        </div>
         <div class="flowchart-canvas">
-          <svg class="flowchart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Microservicos interligados">
+          <div class="flowchart-controls" aria-label="Controles do flowchart">
+            <button type="button" data-flow-zoom="in" title="Aproximar">+</button>
+            <button type="button" data-flow-zoom="out" title="Afastar">-</button>
+            <button type="button" data-flow-zoom="reset" title="Resetar visão">1:1</button>
+          </div>
+          <svg class="flowchart-svg" viewBox="0 0 ${width} ${height}" data-viewbox="0 0 ${width} ${height}" role="img" aria-label="Microservicos interligados">
             <defs>
               <marker id="flowArrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
                 <path d="M0,0 L0,6 L9,3 z" class="flowchart-arrow" />
@@ -380,9 +379,7 @@ function renderEdge(edge, positions, nodeWidth, nodeHeight) {
 
 function renderNode(node, position, nodeWidth, nodeHeight) {
   if (!position) return '';
-  const label = truncateText(node.label, 28);
-  const service = truncateText(node.service, 24);
-  const file = truncateText(node.usecase, 30);
+  const labelLines = wrapSvgText(node.label, 26);
   const classes = ['flowchart-node'];
   if (node.missing) classes.push('flowchart-node--missing');
 
@@ -390,9 +387,11 @@ function renderNode(node, position, nodeWidth, nodeHeight) {
     <g class="${classes.join(' ')}" transform="translate(${position.x} ${position.y})">
       <title>${esc(node.description || `${node.service}/${node.usecase}`)}</title>
       <rect width="${nodeWidth}" height="${nodeHeight}" rx="8" />
-      <text class="flowchart-service" x="14" y="22">${esc(service)}</text>
-      <text class="flowchart-label" x="14" y="45">${esc(label)}</text>
-      <text class="flowchart-file" x="14" y="62">${esc(file)}</text>
+      <text class="flowchart-service" x="14" y="22">${esc(node.service)}</text>
+      <text class="flowchart-label" x="14" y="43">
+        ${labelLines.map((line, index) => `<tspan x="14" dy="${index === 0 ? 0 : 17}">${esc(line)}</tspan>`).join('')}
+      </text>
+      <text class="flowchart-file" x="14" y="${nodeHeight - 18}">${esc(node.usecase)}</text>
     </g>
   `;
 }
@@ -411,10 +410,94 @@ function stripYamlExtension(fileName) {
   return String(fileName).replace(/\.(yaml|yml)$/i, '');
 }
 
-function truncateText(value, maxLength) {
-  const text = String(value || '');
-  if (text.length <= maxLength) return text;
-  return text.slice(0, Math.max(1, maxLength - 3)).trimEnd() + '...';
+function wrapSvgText(value, maxChars) {
+  const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+  const lines = [];
+  let current = '';
+
+  words.forEach(word => {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxChars || !current) {
+      current = next;
+      return;
+    }
+    lines.push(current);
+    current = word;
+  });
+  if (current) lines.push(current);
+  return lines;
+}
+
+function maxWrappedLabelLines(nodes, maxChars) {
+  return Math.max(1, ...nodes.map(node => wrapSvgText(node.label, maxChars).length));
+}
+
+function initFlowchartInteraction(canvas) {
+  if (!canvas) return;
+  const svg = canvas.querySelector('.flowchart-svg');
+  if (!svg) return;
+
+  const initial = svg.dataset.viewbox.split(' ').map(Number);
+  let viewBox = [...initial];
+  let dragging = false;
+  let start = null;
+  let startViewBox = null;
+
+  const apply = () => svg.setAttribute('viewBox', viewBox.join(' '));
+  const zoom = (factor, centerX = viewBox[0] + viewBox[2] / 2, centerY = viewBox[1] + viewBox[3] / 2) => {
+    const nextW = Math.max(initial[2] * 0.35, Math.min(initial[2] * 3, viewBox[2] * factor));
+    const nextH = Math.max(initial[3] * 0.35, Math.min(initial[3] * 3, viewBox[3] * factor));
+    const rx = (centerX - viewBox[0]) / viewBox[2];
+    const ry = (centerY - viewBox[1]) / viewBox[3];
+    viewBox = [centerX - nextW * rx, centerY - nextH * ry, nextW, nextH];
+    apply();
+  };
+
+  canvas.querySelector('[data-flow-zoom="in"]')?.addEventListener('click', () => zoom(0.82));
+  canvas.querySelector('[data-flow-zoom="out"]')?.addEventListener('click', () => zoom(1.18));
+  canvas.querySelector('[data-flow-zoom="reset"]')?.addEventListener('click', () => {
+    viewBox = [...initial];
+    apply();
+  });
+
+  svg.addEventListener('wheel', event => {
+    event.preventDefault();
+    const point = svgPoint(svg, event.clientX, event.clientY);
+    zoom(event.deltaY < 0 ? 0.9 : 1.1, point.x, point.y);
+  }, { passive: false });
+
+  svg.addEventListener('pointerdown', event => {
+    dragging = true;
+    start = { x: event.clientX, y: event.clientY };
+    startViewBox = [...viewBox];
+    svg.setPointerCapture?.(event.pointerId);
+    canvas.classList.add('flowchart-canvas--dragging');
+  });
+
+  svg.addEventListener('pointermove', event => {
+    if (!dragging) return;
+    const dx = (event.clientX - start.x) * (viewBox[2] / svg.clientWidth);
+    const dy = (event.clientY - start.y) * (viewBox[3] / svg.clientHeight);
+    viewBox = [startViewBox[0] - dx, startViewBox[1] - dy, startViewBox[2], startViewBox[3]];
+    apply();
+  });
+
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => {
+    svg.addEventListener(type, event => {
+      if (!dragging) return;
+      dragging = false;
+      svg.releasePointerCapture?.(event.pointerId);
+      canvas.classList.remove('flowchart-canvas--dragging');
+    });
+  });
+}
+
+function svgPoint(svg, clientX, clientY) {
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  return point.matrixTransform(svg.getScreenCTM().inverse());
 }
 
 window.PROCESS_ENGINE_GET_CURRENT_SCRIPT = function getCurrentWorkspaceScript() {

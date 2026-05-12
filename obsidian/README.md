@@ -22,7 +22,10 @@ Em `Settings > Business Rules Emulator`, configure:
 - `Numero de serie` com um serial ativo da assinatura.
 - `Estilo` como `Dark` ou `Clear`.
 
-O endpoint do backend e fixo em `https://rules.raysouz.studio`.
+O endpoint do backend e fixo em `https://rules.raysouz.studio`. A chave de
+transporte e recuperada automaticamente em `GET /crypto-key` e salva
+localmente. O bloco, inputs e mocks sao criptografados antes do envio, e a
+resposta e descriptografada antes da exibicao.
 
 ## Usar em uma nota
 
@@ -30,6 +33,7 @@ Crie um bloco:
 
 ````markdown
 ```rules
+id: "00000000-0000-4000-a000-000000000001"
 name: Roteamento de Ticket
 description: Decide prioridade e fila de atendimento.
 

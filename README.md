@@ -47,6 +47,11 @@ Exemplo com query string:
 http://localhost:5173/studio/?serial=SEU-UUID
 ```
 
+O Studio busca automaticamente a chave de transporte em
+`GET /crypto-key` no backend e salva em cache local. O YAML, inputs, mocks e
+scripts interligados sao criptografados antes do envio, e a resposta e
+descriptografada no navegador antes da exibicao.
+
 Tambem e possivel configurar o backend:
 
 ```text
@@ -136,11 +141,14 @@ No Obsidian, configure:
 - tema `Dark` ou `Clear`
 
 O endpoint do backend no Obsidian e fixo em `https://rules.raysouz.studio`.
+A chave de transporte e recuperada automaticamente em `GET /crypto-key` e salva
+localmente.
 
 Use em uma nota:
 
 ````markdown
 ```rules
+id: "00000000-0000-4000-a000-000000000001"
 name: Meu Processo
 input:
   customer_id:
@@ -155,6 +163,9 @@ steps:
         expr: "'OK'"
 ```
 ````
+
+O campo `id` e obrigatorio. Ele identifica o script no catalogo do backend e
+precisa ser unico no sistema.
 
 ## GitHub Pages
 
