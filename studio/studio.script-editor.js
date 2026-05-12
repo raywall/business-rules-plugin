@@ -104,8 +104,8 @@ const Editor = {
    ================================================================ */
 Object.assign(Actions, {
 
-  async openFile(serviceName, fileName) {
-    if (state.dirty) {
+  async openFile(serviceName, fileName, options = {}) {
+    if (state.dirty && !options.skipDirtyCheck) {
       const save = confirm(`"${state.current.fileName}" tem alterações não salvas.\nSalvar antes de continuar?`);
       if (save) await this.saveFile();
     }
@@ -120,7 +120,11 @@ Object.assign(Actions, {
       state.current = { fileHandle: file.handle, serviceName, fileName };
       state.dirty = false;
       Editor.set(text);
+      StudioPersistence.saveCurrentFile();
       WorkspaceUI.render();
+      if (typeof Actions.render === 'function') {
+        await Actions.render();
+      }
     } catch (e) { alert('Erro ao abrir arquivo: ' + e.message); }
   },
 

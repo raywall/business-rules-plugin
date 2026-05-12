@@ -34,6 +34,8 @@ O studio permite:
 - alternar tema dark/light
 - carregar e exportar YAML
 - renderizar o script pelo rodape do editor
+- abrir um arquivo do workspace e renderizar automaticamente
+- interligar usecases entre microservicos com `links`
 - renderizar a tela de simulacao no painel principal
 
 Nenhum serial de teste fica publicado no studio. Configure o serial pelo botao
@@ -87,6 +89,30 @@ Ou carregue de arquivo:
 src: examples/ecommerce-order-review.yaml
 ```
 ````
+
+## Links entre Usecases
+
+No Studio, cada pasta do workspace representa um microservico e cada YAML
+representa um usecase. Um usecase pode chamar outro microservico/usecase usando
+`links`:
+
+```yaml
+links:
+  - service: pagamentos
+    usecase: autorizar-pagamento.yaml
+    input:
+      order_id: "result.order_id"
+      amount: "result.amount"
+```
+
+Durante a simulacao, o Studio resolve os arquivos linkados no workspace e envia
+o bundle ao backend. O backend executa a esteira end-to-end, passando o
+`result` de um usecase como input do proximo.
+
+Exemplos disponiveis:
+
+- `studio/workspace/pedidos/criar-pedido.yaml`
+- `studio/workspace/pagamentos/autorizar-pagamento.yaml`
 
 ## Plugin Obsidian
 

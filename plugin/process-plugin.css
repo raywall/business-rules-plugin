@@ -938,6 +938,60 @@ details[open] .pe-vars-summary::before {
   white-space: pre;
 }
 
+.pe-pipeline {
+  margin-top: 1rem;
+  border-top: 1px solid var(--pe-border);
+  padding-top: 1rem;
+}
+
+.pe-pipeline-title {
+  font-family: var(--pe-font-mono);
+  font-size: .72rem;
+  color: var(--pe-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: .65rem;
+}
+
+.pe-pipeline-card {
+  border: 1px solid var(--pe-border);
+  border-radius: var(--pe-radius-sm);
+  background: var(--pe-surface);
+  margin-top: .5rem;
+  overflow: hidden;
+}
+
+.pe-pipeline-summary {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .65rem .75rem;
+  cursor: pointer;
+}
+
+.pe-pipeline-index {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pe-surface-2);
+  color: var(--pe-text-muted);
+  font-family: var(--pe-font-mono);
+  font-size: .72rem;
+}
+
+.pe-pipeline-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pe-text);
+  font-family: var(--pe-font-mono);
+  font-size: .8rem;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .pe-inputs-grid {

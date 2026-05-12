@@ -158,7 +158,7 @@ Object.assign(Actions, {
   toggleTheme() {
     const next = document.body.dataset.theme === 'light' ? 'dark' : 'light';
     document.body.dataset.theme = next;
-    localStorage.setItem('STUDIO_THEME', next);
+    localStorage.setItem(STORAGE_KEYS.theme, next);
     el.toggleTheme.textContent = next === 'light' ? 'Dark' : 'Light';
     this.applyPreviewTheme();
   },
@@ -185,15 +185,74 @@ Object.assign(Actions, {
   },
 
   toggleWorkspacePanel() {
-    state.collapsed = !state.collapsed;
     const panel = el.workspacePanel;
+    const nextCollapsed = !state.collapsed;
+    if (nextCollapsed) {
+      const currentHeight = panel.getBoundingClientRect().height;
+      if (currentHeight > 36) {
+        panel._savedHeight = currentHeight;
+        localStorage.setItem(STORAGE_KEYS.workspaceHeight, String(Math.round(currentHeight)));
+      }
+    }
+
+    state.collapsed = nextCollapsed;
     panel.classList.toggle('ws-panel--collapsed', state.collapsed);
     el.collapseWorkspaceBtn.textContent = state.collapsed ? '▸' : '▾';
     el.collapseWorkspaceBtn.title = state.collapsed ? 'Expandir workspace' : 'Recolher workspace';
+    localStorage.setItem(STORAGE_KEYS.workspaceCollapsed, String(state.collapsed));
     if (!state.collapsed) {
-      panel.style.height = (panel._savedHeight || 260) + 'px';
-    } else {
-      panel._savedHeight = panel.getBoundingClientRect().height;
+      const savedHeight = Number.parseInt(localStorage.getItem(STORAGE_KEYS.workspaceHeight) || '', 10);
+      const memoryHeight = Number.isFinite(panel._savedHeight) && panel._savedHeight > 36 ? panel._savedHeight : null;
+      const persistedHeight = Number.isFinite(savedHeight) && savedHeight > 36 ? savedHeight : null;
+      const restoreHeight = memoryHeight || persistedHeight || 260;
+      panel.style.height = restoreHeight + 'px';
     }
   }
 });
+
+window.PROCESS_ENGINE_RESOLVE_LINKS = async function resolveWorkspaceLinks(proc) {
+  const resolved = [];
+  const seen = new Set();
+
+  async function visit(processDoc) {
+    if (!processDoc || !Array.isArray(processDoc.links)) return;
+
+    for (const link of processDoc.links) {
+      if (!link || !link.service || !link.usecase) continue;
+
+      const serviceName = String(link.service);
+      const usecaseName = normalizeUsecaseName(link.usecase);
+      const key = `${serviceName}/${usecaseName}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const file = findWorkspaceFile(serviceName, usecaseName);
+      if (!file) {
+        throw new Error(`Usecase interligado nao encontrado no workspace: ${key}`);
+      }
+
+      const yaml = await FS.readFile(file.handle);
+      resolved.push({ service: serviceName, usecase: usecaseName, yaml });
+
+      try {
+        await visit(jsyaml.load(yaml));
+      } catch (error) {
+        throw new Error(`Erro lendo links de ${key}: ${error.message}`);
+      }
+    }
+  }
+
+  await visit(proc);
+  return resolved;
+};
+
+function normalizeUsecaseName(usecase) {
+  const name = String(usecase).trim();
+  return /\.(yaml|yml)$/i.test(name) ? name : `${name}.yaml`;
+}
+
+function findWorkspaceFile(serviceName, usecaseName) {
+  const service = state.workspace.tree.find(item => item.name === serviceName);
+  if (!service) return null;
+  return service.children.find(file => file.name === usecaseName) || null;
+}

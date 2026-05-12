@@ -19,6 +19,7 @@ const FS = {
       state.workspace.rootHandle = handle;
       state.workspace.name = handle.name;
       state.workspace.tree = await this.buildTree(handle);
+      await StudioPersistence.saveWorkspaceHandle(handle);
       return true;
     } catch (e) {
       if (e.name !== 'AbortError') console.error('Workspace error:', e);
@@ -28,6 +29,7 @@ const FS = {
 
   async buildTree(dirHandle) {
     const nodes = [];
+    const expandedServices = new Set(StudioPersistence.loadExpandedServices());
     for await (const [name, handle] of dirHandle.entries()) {
       if (name.startsWith('.') || name === 'node_modules') continue;
       if (handle.kind === 'directory') {
@@ -38,7 +40,7 @@ const FS = {
           }
         }
         children.sort((a, b) => a.name.localeCompare(b.name));
-        nodes.push({ name, handle, type: 'dir', expanded: false, children });
+        nodes.push({ name, handle, type: 'dir', expanded: expandedServices.has(name), children });
       }
     }
     nodes.sort((a, b) => a.name.localeCompare(b.name));
@@ -148,7 +150,11 @@ const WorkspaceUI = {
     panel.querySelectorAll('.ws-service-header').forEach(hdr => {
       hdr.addEventListener('click', () => {
         const node = tree.find(n => n.name === hdr.dataset.service);
-        if (node) { node.expanded = !node.expanded; this.render(); }
+        if (node) {
+          node.expanded = !node.expanded;
+          StudioPersistence.saveExpandedServices();
+          this.render();
+        }
       });
       hdr.addEventListener('contextmenu', e => {
         e.preventDefault();
@@ -165,6 +171,8 @@ const WorkspaceUI = {
       item.addEventListener('contextmenu', e => {
         e.preventDefault();
         ContextMenu.show(e.clientX, e.clientY, [
+          { label: '⇢  Interligar a outro usecase', action: () => Actions.linkUsecase(item.dataset.service, item.dataset.file) },
+          { sep: true },
           { label: '✕  Remover do workspace', action: () => Actions.removeUsecase(item.dataset.service, item.dataset.file), danger: true }
         ]);
       });
@@ -200,12 +208,40 @@ Object.assign(Actions, {
     WorkspaceUI.render();
   },
 
+  async restoreWorkspace() {
+    if (!FS.supported) return;
+    const handle = await StudioPersistence.loadWorkspaceHandle();
+    if (!handle) return;
+
+    const allowed = await StudioPersistence.ensurePermission(handle);
+    if (!allowed) return;
+
+    try {
+      state.workspace.rootHandle = handle;
+      state.workspace.name = handle.name;
+      state.workspace.tree = await FS.buildTree(handle);
+      el.workspaceName.textContent = state.workspace.name;
+      el.newServiceBtn.disabled = false;
+      el.newUsecaseBtn.disabled = false;
+      el.refreshWorkspaceBtn.disabled = false;
+      WorkspaceUI.render();
+
+      const current = StudioPersistence.loadCurrentFile();
+      if (current?.serviceName && current?.fileName) {
+        await Actions.openFile(current.serviceName, current.fileName, { skipDirtyCheck: true });
+      }
+    } catch (error) {
+      console.warn('Nao foi possivel restaurar workspace:', error);
+    }
+  },
+
   async refreshWorkspace() {
     if (!state.workspace.rootHandle) return;
     const expanded = {};
     state.workspace.tree.forEach(s => { expanded[s.name] = s.expanded; });
     state.workspace.tree = await FS.buildTree(state.workspace.rootHandle);
     state.workspace.tree.forEach(s => { s.expanded = expanded[s.name] || false; });
+    StudioPersistence.saveExpandedServices();
     WorkspaceUI.render();
   },
 
@@ -223,6 +259,7 @@ Object.assign(Actions, {
       const handle = await FS.createDir(state.workspace.rootHandle, name);
       state.workspace.tree.push({ name, handle, type: 'dir', expanded: true, children: [] });
       state.workspace.tree.sort((a, b) => a.name.localeCompare(b.name));
+      StudioPersistence.saveExpandedServices();
       WorkspaceUI.render();
     } catch (e) { alert('Erro ao criar serviço: ' + e.message); }
   },
@@ -246,6 +283,7 @@ Object.assign(Actions, {
       service.children.push({ name: fileName, handle, type: 'file' });
       service.children.sort((a, b) => a.name.localeCompare(b.name));
       service.expanded = true;
+      StudioPersistence.saveExpandedServices();
       WorkspaceUI.render();
       await Actions.openFile(serviceName, fileName);
     } catch (e) { alert('Erro ao criar usecase: ' + e.message); }
@@ -270,7 +308,9 @@ Object.assign(Actions, {
     if (state.current.serviceName === serviceName) {
       state.current = { fileHandle: null, serviceName: null, fileName: null };
       state.dirty = false;
+      StudioPersistence.clearCurrentFile();
     }
+    StudioPersistence.saveExpandedServices();
     WorkspaceUI.render();
   },
 
@@ -281,8 +321,60 @@ Object.assign(Actions, {
     if (state.current.fileName === fileName && state.current.serviceName === serviceName) {
       state.current = { fileHandle: null, serviceName: null, fileName: null };
       state.dirty = false;
+      StudioPersistence.clearCurrentFile();
       Editor.set('');
     }
     WorkspaceUI.render();
+  },
+
+  linkUsecase(serviceName, fileName) {
+    const targets = [];
+    state.workspace.tree.forEach(service => {
+      service.children.forEach(file => {
+        if (service.name === serviceName && file.name === fileName) return;
+        targets.push({ service: service.name, usecase: file.name });
+      });
+    });
+
+    if (targets.length === 0) {
+      alert('Nao existem outros usecases no workspace para interligar.');
+      return;
+    }
+
+    const options = targets.map((target, index) => `${index + 1}. ${target.service}/${target.usecase}`).join('\n');
+    const raw = prompt(`Escolha o usecase de destino (numero):\n${options}`);
+    if (!raw) return;
+
+    const selected = targets[Number.parseInt(raw, 10) - 1];
+    if (!selected) {
+      alert('Usecase de destino invalido.');
+      return;
+    }
+
+    if (state.current.serviceName !== serviceName || state.current.fileName !== fileName) {
+      Actions.openFile(serviceName, fileName).then(() => Actions.appendLink(selected));
+      return;
+    }
+
+    this.appendLink(selected);
+  },
+
+  appendLink(target) {
+    const current = Editor.get().replace(/\s*$/, '');
+    const block = [
+      '',
+      'links:',
+      `  - service: ${target.service}`,
+      `    usecase: ${target.usecase}`,
+      '    input: {}',
+      '',
+    ].join('\n');
+
+    if (/\nlinks:\s*\n/.test(current)) {
+      Editor.set(current.replace(/\nlinks:\s*\n/, `\nlinks:\n  - service: ${target.service}\n    usecase: ${target.usecase}\n    input: {}\n`));
+    } else {
+      Editor.set(current + block);
+    }
+    Editor.markDirty();
   }
 });

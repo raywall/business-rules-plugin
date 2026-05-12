@@ -1,0 +1,63 @@
+id: "10000000-0000-4000-a000-000000000002"
+name: Autorizar Pagamento
+description: |
+  Exemplo de usecase em outro microservico. Recebe como input o output do
+  usecase pedidos/criar-pedido.yaml.
+
+input:
+  order_id:
+    type: string
+    label: "Pedido"
+    description: "Pedido recebido do microservico pedidos."
+    example: "ORD-1001"
+  customer_id:
+    type: string
+    label: "Cliente"
+    description: "Cliente recebido do microservico pedidos."
+    example: "CUS-900"
+  amount:
+    type: number
+    label: "Valor"
+    description: "Valor a autorizar."
+    example: 349.90
+  currency:
+    type: string
+    label: "Moeda"
+    description: "Moeda da autorizacao."
+    example: "BRL"
+
+mocks:
+  gateway:
+    source: "POST /payments/authorizations"
+    data:
+      approved: true
+      authorization_id: "PAY-777"
+      provider: "sandbox-gateway"
+
+steps:
+  - name: Validar Dados de Pagamento
+    condition: "input.order_id != '' && input.customer_id != '' && input.amount > 0.0 && input.currency == 'BRL'"
+    on_fail:
+      action: ABORT
+      message: "Dados insuficientes para autorizar pagamento"
+
+  - name: Autorizar no Gateway
+    use_mock: gateway
+    assign: gateway
+    condition: "gateway.approved == true"
+    on_fail:
+      action: ABORT
+      message: "Pagamento recusado pelo gateway"
+
+  - name: Resultado do Pagamento
+    result:
+      - name: order_id
+        expr: "input.order_id"
+      - name: customer_id
+        expr: "input.customer_id"
+      - name: payment_status
+        expr: "'AUTHORIZED'"
+      - name: authorization_id
+        expr: "gateway.authorization_id"
+      - name: amount
+        expr: "input.amount"

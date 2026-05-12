@@ -123,6 +123,8 @@ abre automaticamente no editor.
 - ✕ Remover do workspace — remove o serviço da árvore (a pasta permanece no disco)
 
 **Em um usecase:**
+- ⇢ Interligar a outro usecase — adiciona um bloco `links` para chamar outro
+  microserviço/usecase do workspace
 - ✕ Remover do workspace — remove o arquivo da árvore (o arquivo permanece no disco)
 
 > Remover do workspace não exclui arquivos ou pastas do disco. Para
@@ -429,6 +431,75 @@ Cada item de `result` possui:
 
 
 Quando um passo tem `result`, ele aparece como resultado final na tela.
+
+## Links entre Microserviços e Usecases
+
+Use `links` para conectar o output de um usecase ao input de outro usecase.
+No Studio, a pasta representa o microserviço e o arquivo YAML representa o
+usecase.
+
+```yaml
+links:
+  - service: pagamentos
+    usecase: autorizar-pagamento.yaml
+    input:
+      order_id: "result.order_id"
+      customer_id: "result.customer_id"
+      amount: "result.amount"
+```
+
+Campos do link:
+
+- `service`: nome da pasta/microserviço no workspace.
+- `usecase`: nome do arquivo YAML de destino. A extensao `.yaml` e opcional.
+- `input`: mapa opcional de campos que serao enviados ao usecase de destino.
+
+As expressoes de `input` sao avaliadas com CEL e recebem:
+
+- `result`: resultado final do usecase anterior.
+- `output`: alias de `result`.
+- `previous`: alias de `result`.
+- `input`: input original recebido pelo usecase atual.
+
+Se `input` for omitido ou estiver vazio, o backend envia todo o `result` do
+usecase anterior como input do proximo.
+
+Exemplo end-to-end:
+
+```yaml
+name: Criar Pedido
+input:
+  order_id:
+    type: string
+    label: "Pedido"
+    example: "ORD-1001"
+  total:
+    type: number
+    label: "Total"
+    example: 349.90
+
+steps:
+  - name: Resultado do Pedido
+    result:
+      - name: order_id
+        expr: "input.order_id"
+      - name: amount
+        expr: "input.total"
+
+links:
+  - service: pagamentos
+    usecase: autorizar-pagamento.yaml
+    input:
+      order_id: "result.order_id"
+      amount: "result.amount"
+```
+
+O Studio inclui dois exemplos prontos:
+
+```text
+studio/workspace/pedidos/criar-pedido.yaml
+studio/workspace/pagamentos/autorizar-pagamento.yaml
+```
 
 ## Exemplo Completo
 

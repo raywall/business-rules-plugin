@@ -100,6 +100,21 @@ steps:
         expr: "'OK'"
 `;
 
+const STORAGE_KEYS = {
+  theme: 'STUDIO_THEME',
+  sidebarWidth: 'STUDIO_SIDEBAR_WIDTH',
+  workspaceHeight: 'STUDIO_WORKSPACE_HEIGHT',
+  workspaceCollapsed: 'STUDIO_WORKSPACE_COLLAPSED',
+  currentFile: 'STUDIO_CURRENT_FILE',
+  expandedServices: 'STUDIO_EXPANDED_SERVICES',
+};
+
+const WORKSPACE_DB = {
+  name: 'business-rules-studio',
+  store: 'handles',
+  rootKey: 'workspace-root',
+};
+
 /* ================================================================
    ID MANAGEMENT
    ================================================================ */
@@ -173,8 +188,129 @@ const state = {
     fileName: null
   },
   dirty: false,
-  collapsed: false,
-  theme: localStorage.getItem('STUDIO_THEME') || 'dark'
+  collapsed: localStorage.getItem(STORAGE_KEYS.workspaceCollapsed) === 'true',
+  theme: localStorage.getItem(STORAGE_KEYS.theme) || 'dark'
+};
+
+/* ================================================================
+   PERSISTENCE
+   ================================================================ */
+const StudioPersistence = {
+  openDb() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        reject(new Error('IndexedDB indisponivel'));
+        return;
+      }
+      const request = indexedDB.open(WORKSPACE_DB.name, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(WORKSPACE_DB.store);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  async saveWorkspaceHandle(handle) {
+    try {
+      const db = await this.openDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(WORKSPACE_DB.store, 'readwrite');
+        tx.objectStore(WORKSPACE_DB.store).put(handle, WORKSPACE_DB.rootKey);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    } catch (error) {
+      console.warn('Nao foi possivel persistir workspace:', error);
+    }
+  },
+
+  async loadWorkspaceHandle() {
+    try {
+      const db = await this.openDb();
+      const handle = await new Promise((resolve, reject) => {
+        const tx = db.transaction(WORKSPACE_DB.store, 'readonly');
+        const request = tx.objectStore(WORKSPACE_DB.store).get(WORKSPACE_DB.rootKey);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      return handle;
+    } catch (_) {
+      return null;
+    }
+  },
+
+  async ensurePermission(handle) {
+    if (!handle) return false;
+    const opts = { mode: 'readwrite' };
+    if (typeof handle.queryPermission === 'function') {
+      const current = await handle.queryPermission(opts);
+      if (current === 'granted') return true;
+    }
+    if (typeof handle.requestPermission === 'function') {
+      try {
+        return await handle.requestPermission(opts) === 'granted';
+      } catch (_) {
+        return false;
+      }
+    }
+    return true;
+  },
+
+  saveCurrentFile() {
+    if (!state.current.serviceName || !state.current.fileName) return;
+    localStorage.setItem(STORAGE_KEYS.currentFile, JSON.stringify({
+      serviceName: state.current.serviceName,
+      fileName: state.current.fileName,
+    }));
+  },
+
+  loadCurrentFile() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.currentFile) || 'null');
+    } catch (_) {
+      return null;
+    }
+  },
+
+  clearCurrentFile() {
+    localStorage.removeItem(STORAGE_KEYS.currentFile);
+  },
+
+  saveExpandedServices() {
+    const expanded = state.workspace.tree.filter(service => service.expanded).map(service => service.name);
+    localStorage.setItem(STORAGE_KEYS.expandedServices, JSON.stringify(expanded));
+  },
+
+  loadExpandedServices() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.expandedServices) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  },
+
+  applySavedLayout() {
+    const sidebar = document.querySelector('.studio-sidebar');
+    const width = Number.parseInt(localStorage.getItem(STORAGE_KEYS.sidebarWidth) || '', 10);
+    if (sidebar && Number.isFinite(width)) {
+      sidebar.style.width = width + 'px';
+    }
+
+    const height = Number.parseInt(localStorage.getItem(STORAGE_KEYS.workspaceHeight) || '', 10);
+    if (el.workspacePanel && Number.isFinite(height)) {
+      el.workspacePanel.style.height = height + 'px';
+      el.workspacePanel._savedHeight = height;
+    }
+    if (el.workspacePanel) {
+      el.workspacePanel.classList.toggle('ws-panel--collapsed', state.collapsed);
+    }
+    if (el.collapseWorkspaceBtn) {
+      el.collapseWorkspaceBtn.textContent = state.collapsed ? '▸' : '▾';
+      el.collapseWorkspaceBtn.title = state.collapsed ? 'Expandir workspace' : 'Recolher workspace';
+    }
+  },
 };
 
 /* ================================================================
@@ -239,9 +375,10 @@ const Actions = {};
 /* ================================================================
    INIT
    ================================================================ */
-function init() {
+async function init() {
   document.body.dataset.theme = state.theme;
   el.toggleTheme.textContent = state.theme === 'light' ? 'Dark' : 'Light';
+  StudioPersistence.applySavedLayout();
 
   if (el.newServiceBtn) el.newServiceBtn.disabled = true;
   if (el.newUsecaseBtn) el.newUsecaseBtn.disabled = true;
@@ -288,6 +425,7 @@ function init() {
 
   initSidebarResize();
   initWsDividerResize();
+  await Actions.restoreWorkspace();
 }
 
 /* ================================================================
@@ -322,6 +460,7 @@ function initSidebarResize() {
     rail.classList.remove('sidebar-rail--dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    localStorage.setItem(STORAGE_KEYS.sidebarWidth, String(Math.round(sidebar.getBoundingClientRect().width)));
   });
 }
 
@@ -359,6 +498,7 @@ function initWsDividerResize() {
     divider.classList.remove('ws-divider--dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    localStorage.setItem(STORAGE_KEYS.workspaceHeight, String(Math.round(wsPanel.getBoundingClientRect().height)));
   });
 }
 

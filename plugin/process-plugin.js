@@ -302,6 +302,14 @@
       }
     }
 
+    let linkedScripts = [];
+    try {
+      linkedScripts = await resolveLinkedScripts(proc, yaml);
+    } catch (e) {
+      setStatus(statusEl, '⚠ ' + e.message, 'error');
+      return;
+    }
+
     /* UI: loading state */
     btn.disabled = true;
     btn.classList.add('pe-btn-loading');
@@ -319,6 +327,7 @@
           yaml,
           input: inputData,
           mock_overrides: mockOverrides,
+          linked_scripts: linkedScripts,
         }),
       });
 
@@ -337,6 +346,17 @@
       btn.classList.remove('pe-btn-loading');
       btn.querySelector('.pe-btn-label').textContent = 'Simular';
     }
+  }
+
+  async function resolveLinkedScripts(proc, yaml) {
+    if (!proc || !Array.isArray(proc.links) || proc.links.length === 0) {
+      return [];
+    }
+    if (typeof window.PROCESS_ENGINE_RESOLVE_LINKS !== 'function') {
+      return [];
+    }
+    const resolved = await window.PROCESS_ENGINE_RESOLVE_LINKS(proc, yaml);
+    return Array.isArray(resolved) ? resolved : [];
   }
 
   function getSerialNumber() {
@@ -399,6 +419,34 @@
       await sleep(RESULT_DELAY_MS);
       showFinalResult(`${id}-final-result`, result.final_result, result.final_status);
     }
+
+    if (Array.isArray(result.pipeline) && result.pipeline.length > 0) {
+      await sleep(RESULT_DELAY_MS);
+      renderPipeline(container.querySelector('.pe-trace'), result.pipeline);
+    }
+  }
+
+  function renderPipeline(container, pipeline) {
+    if (!container) return;
+    const section = el('div', { class: 'pe-pipeline' });
+    section.innerHTML = `<div class="pe-pipeline-title">Esteira end-to-end</div>`;
+
+    pipeline.forEach((item, index) => {
+      const cfg = FINAL_STATUS[item.result?.final_status] || { label: item.result?.final_status || 'UNKNOWN', cls: 'gray' };
+      const card = el('details', { class: 'pe-pipeline-card' });
+      if (index === 0) card.open = true;
+      card.innerHTML = `
+        <summary class="pe-pipeline-summary">
+          <span class="pe-pipeline-index">${index + 1}</span>
+          <span class="pe-pipeline-name">${esc(item.service)}/${esc(item.usecase)}</span>
+          <span class="pe-final-badge pe-badge-${cfg.cls}">${esc(cfg.label)}</span>
+        </summary>
+        <pre class="pe-vars-pre">${esc(JSON.stringify(item.result?.final_result || {}, null, 2))}</pre>
+      `;
+      section.appendChild(card);
+    });
+
+    container.appendChild(section);
   }
 
   function appendStepCard(container, step, index, total) {
