@@ -322,7 +322,7 @@
 
     try {
       const currentScript = getCurrentScriptRef();
-      const body = await secureRequestBody(serialNumber, {
+      const encryptedPayload = await securePayload({
         service: currentScript?.service,
         usecase: currentScript?.usecase,
         yaml,
@@ -330,10 +330,7 @@
         mock_overrides: mockOverrides,
         linked_scripts: linkedScripts,
       });
-      const res = await fetch(`${LAMBDA_URL}/simulate`, {
-        method: 'POST',
-        body,
-      });
+      const res = await postSecureSimulation(serialNumber, encryptedPayload);
 
       const responseText = await res.text();
       const result = await readSecureResponse(responseText);
@@ -370,14 +367,31 @@
     };
   }
 
-  async function secureRequestBody(serialNumber, payload) {
+  async function securePayload(payload) {
     const secret = await getCryptoSecret();
-    const encrypted = await encryptJSON(secret, payload);
+    return encryptJSON(secret, payload);
+  }
+
+  async function postSecureSimulation(serialNumber, encrypted) {
     const body = new URLSearchParams();
     body.set('serial_number', serialNumber);
     body.set('iv', encrypted.iv);
     body.set('data', encrypted.data);
-    return body;
+    const res = await fetch(`${LAMBDA_URL}/simulate`, {
+      method: 'POST',
+      body,
+    });
+    if (res.status !== 400) return res;
+
+    return fetch(`${LAMBDA_URL}/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serial_number: serialNumber,
+        encrypted: true,
+        payload: encrypted,
+      }),
+    });
   }
 
   async function readSecureResponse(text) {

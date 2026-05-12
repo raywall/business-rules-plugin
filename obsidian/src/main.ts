@@ -284,16 +284,7 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
         input: inputData,
         mock_overrides: mockOverrides,
       });
-      const body = new URLSearchParams();
-      body.set('serial_number', this.settings.serialNumber.trim());
-      body.set('iv', payload.iv);
-      body.set('data', payload.data);
-      const response = await requestUrl({
-        url: `${this.engineBaseUrl()}/simulate`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: body.toString(),
-      });
+      const response = await this.postSecureSimulation(payload);
 
       const result = await decryptResponse(cryptoSecret, response.text) as SimulationResult;
       if (response.status < 200 || response.status >= 300) {
@@ -478,6 +469,32 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
     this.settings.cryptoKey = body.key.trim();
     await this.saveSettings();
     return this.settings.cryptoKey;
+  }
+
+  private async postSecureSimulation(payload: { iv: string; data: string }) {
+    const serialNumber = this.settings.serialNumber.trim();
+    const body = new URLSearchParams();
+    body.set('serial_number', serialNumber);
+    body.set('iv', payload.iv);
+    body.set('data', payload.data);
+    const response = await requestUrl({
+      url: `${this.engineBaseUrl()}/simulate`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: body.toString(),
+    });
+    if (response.status !== 400) return response;
+
+    return requestUrl({
+      url: `${this.engineBaseUrl()}/simulate`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serial_number: serialNumber,
+        encrypted: true,
+        payload,
+      }),
+    });
   }
 }
 
