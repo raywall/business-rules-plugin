@@ -322,7 +322,7 @@
 
     try {
       const currentScript = getCurrentScriptRef();
-      const body = await secureRequestBody({
+      const body = await secureRequestBody(serialNumber, {
         service: currentScript?.service,
         usecase: currentScript?.usecase,
         yaml,
@@ -332,8 +332,8 @@
       });
       const res = await fetch(`${LAMBDA_URL}/simulate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serial_number: serialNumber, encrypted: true, payload: body }),
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body,
       });
 
       const responseText = await res.text();
@@ -371,9 +371,10 @@
     };
   }
 
-  async function secureRequestBody(payload) {
+  async function secureRequestBody(serialNumber, payload) {
     const secret = await getCryptoSecret();
-    return encryptJSON(secret, payload);
+    const encrypted = await encryptJSON(secret, payload);
+    return ['BR1', serialNumber, encrypted.iv, encrypted.data].join('\n');
   }
 
   async function readSecureResponse(text) {

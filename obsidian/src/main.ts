@@ -284,15 +284,17 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
         input: inputData,
         mock_overrides: mockOverrides,
       });
+      const body = [
+        'BR1',
+        this.settings.serialNumber.trim(),
+        payload.iv,
+        payload.data,
+      ].join('\n');
       const response = await requestUrl({
         url: `${this.engineBaseUrl()}/simulate`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serial_number: this.settings.serialNumber.trim(),
-          encrypted: true,
-          payload,
-        }),
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body,
       });
 
       const result = await decryptResponse(cryptoSecret, response.text) as SimulationResult;

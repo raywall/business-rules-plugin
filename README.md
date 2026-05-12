@@ -52,6 +52,10 @@ O Studio busca automaticamente a chave de transporte em
 scripts interligados sao criptografados antes do envio, e a resposta e
 descriptografada no navegador antes da exibicao.
 
+Para reduzir bloqueios de proxy corporativo, o envio para `POST /simulate` usa
+`Content-Type: text/plain` com um envelope simples contendo apenas serial, IV e
+payload criptografado.
+
 Tambem e possivel configurar o backend:
 
 ```text

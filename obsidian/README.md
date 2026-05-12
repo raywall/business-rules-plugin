@@ -27,6 +27,10 @@ transporte e recuperada automaticamente em `GET /crypto-key` e salva
 localmente. O bloco, inputs e mocks sao criptografados antes do envio, e a
 resposta e descriptografada antes da exibicao.
 
+Para reduzir bloqueios de proxy corporativo, o envio para `POST /simulate` usa
+`Content-Type: text/plain` com um envelope simples contendo apenas serial, IV e
+payload criptografado.
+
 ## Usar em uma nota
 
 Crie um bloco:
@@ -76,14 +80,5 @@ steps:
 ```
 ````
 
-O plugin monta o formulario, permite editar mocks em JSON e envia:
-
-```json
-{
-  "yaml": "...",
-  "input": {},
-  "mock_overrides": {}
-}
-```
-
-para `POST /simulate`.
+O plugin monta o formulario, permite editar mocks em JSON e envia um envelope
+criptografado para `POST /simulate`.
