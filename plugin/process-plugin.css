@@ -59,6 +59,39 @@
   color-scheme: dark;
 }
 
+.pe-widget.pe-theme-clear {
+  --pe-bg: #f7f9fc;
+  --pe-surface: #ffffff;
+  --pe-surface-2: #eef3f8;
+  --pe-border: #ccd6e0;
+  --pe-border-2: #dce3eb;
+  --pe-text: #18212f;
+  --pe-text-muted: #5d6b7c;
+  --pe-text-dim: #8793a3;
+  --pe-accent: #245fcb;
+  --pe-shadow: 0 4px 18px rgba(27, 39, 55, .12);
+  --pe-shadow-sm: 0 2px 8px rgba(27, 39, 55, .10);
+  --pe-green: #147d3f;
+  --pe-green-bg: #eaf7ef;
+  --pe-green-border: #b7e1c5;
+  --pe-red: #c7352d;
+  --pe-red-bg: #fff0ee;
+  --pe-red-border: #f0c2bd;
+  --pe-gray: #697586;
+  --pe-gray-bg: #f1f4f8;
+  --pe-gray-border: #d6dee8;
+  --pe-blue: #0969da;
+  --pe-blue-bg: #edf5ff;
+  --pe-blue-border: #bdd7f4;
+  --pe-purple: #8250df;
+  --pe-purple-bg: #f4efff;
+  --pe-purple-border: #d7c7ff;
+  --pe-orange: #b95b00;
+  --pe-orange-bg: #fff4e5;
+  --pe-orange-border: #f0cf9f;
+  color-scheme: light;
+}
+
 .pe-parse-error {
   background: var(--pe-red-bg);
   border: 1px solid var(--pe-red-border);

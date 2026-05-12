@@ -120,6 +120,19 @@
     target.replaceWith(widget);
   }
 
+  function render(container, yamlText) {
+    if (!container) return;
+    container.innerHTML = '';
+
+    const pre = el('pre');
+    const code = el('code', { class: 'language-process' });
+    code.textContent = yamlText;
+    pre.appendChild(code);
+    container.appendChild(pre);
+
+    return mountWidget(code);
+  }
+
   function errorBox(message) {
     const err = document.createElement('div');
     err.className = 'pe-parse-error';
@@ -544,5 +557,5 @@
   }
 
   /* Expose for manual re-init (e.g. after dynamic content loads) */
-  window.ProcessPlugin = { init, simulate };
+  window.ProcessPlugin = { init, render, simulate };
 }());

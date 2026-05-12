@@ -1,7 +1,7 @@
 # Como construir scripts de cenários de decisão com o Business Rules?
 
-Este documento descreve como montar scripts YAML usados pelo 
-no Business Rules Studio e Business Rules Plugin for Obsidian.
+Este documento descreve como montar scripts YAML usados pelo
+Business Rules Studio e Business Rules Plugin for Obsidian.
 
 O script define uma simulação de regras de negócio com:
 
@@ -10,13 +10,13 @@ O script define uma simulação de regras de negócio com:
 - passos sequenciais de validação, consulta, cálculo e resultado
 - expressoes CEL para avaliar condições e calcular valores
 
+
 ## Onde usar
 
 No Studio, cole o YAML diretamente no editor lateral.
 
 No plugin web, use um bloco Markdown `process`:
 
-````markdown
 ```process
 name: Minha Regra
 steps:
@@ -25,11 +25,9 @@ steps:
       - name: status
         expr: "'OK'"
 ```
-````
 
 No Obsidian, use um bloco Markdown `rules`:
 
-````markdown
 ```rules
 name: Minha Regra
 steps:
@@ -38,21 +36,133 @@ steps:
       - name: status
         expr: "'OK'"
 ```
-````
 
 No plugin web também e possível carregar o YAML de um arquivo:
 
-````markdown
 ```process
 src: studio/examples/ecommerce-order-review.yaml
 ```
-````
 
-## Estrutura geral
+## Workspaces no Studio
+
+O Studio suporta **workspaces**: pastas locais abertas diretamente no
+navegador via File System Access API. Isso permite organizar projetos com
+múltiplos microserviços e usecases sem precisar carregar e exportar
+arquivos manualmente a cada alteração.
+
+> **Requisito:** Chrome 86+ ou Edge 86+. O Firefox não suporta a
+> File System Access API nesta versão.
+
+### Conceito de workspace
+
+Um workspace representa um **projeto** — por exemplo, um sistema ou
+domínio de negócio. Dentro dele, cada **subpasta** representa um
+**microserviço** (como um ECS service, Lambda, ou qualquer unidade
+de deploy independente). Cada **arquivo `.yaml`** dentro de uma subpasta
+é um **usecase** daquele microserviço.
+
+```
+meu-projeto/                    ← workspace (pasta raiz)
+├── order-service/              ← microserviço
+│   ├── create-order.yaml       ← usecase
+│   ├── cancel-order.yaml       ← usecase
+│   └── update-status.yaml      ← usecase
+├── payment-service/            ← microserviço
+│   ├── process-payment.yaml    ← usecase
+│   └── refund.yaml             ← usecase
+└── notification-service/       ← microserviço
+    └── send-email.yaml         ← usecase
+```
+
+### Abrindo um workspace
+
+1. Clique no ícone de pasta (⬡) na barra do painel Workspace.
+2. Selecione a pasta raiz do seu projeto.
+3. O navegador pedirá permissão de leitura e escrita — confirme.
+4. O Studio carrega automaticamente todos os microserviços e usecases.
+
+O nome da pasta raiz aparece como título do workspace na barra superior.
+
+### Navegando entre usecases
+
+Clique em um microserviço para expandir ou recolher sua lista de usecases.
+Clique em um usecase para carregá-lo no editor YAML.
+
+O **breadcrumb** acima do editor mostra o caminho atual:
+`workspace › microserviço › usecase`
+
+O arquivo ativo fica destacado em azul na árvore.
+
+### Salvando alterações
+
+Use **Ctrl+S** (ou **Cmd+S** no Mac) para salvar o arquivo atual em disco.
+O botão **Salvar** na barra do editor tem o mesmo efeito.
+
+Arquivos com alterações não salvas exibem um ponto laranja (●) na árvore.
+Ao tentar abrir outro arquivo com alterações pendentes, o Studio pergunta
+se você deseja salvar antes de continuar.
+
+### Criando microserviços e usecases
+
+**Novo microserviço:**
+Clique no ícone de pasta com `+` na barra do workspace. Digite o nome
+(será convertido para kebab-case automaticamente). Uma nova pasta é criada
+no disco dentro do workspace.
+
+**Novo usecase:**
+- Clique no ícone de arquivo com `+` na barra do workspace, ou
+- Clique com o botão direito em um microserviço e escolha "+ Novo usecase".
+
+O Studio cria o arquivo `.yaml` no disco com um template inicial e o
+abre automaticamente no editor.
+
+### Menu de contexto (clique com botão direito)
+
+**Em um microserviço:**
+- ＋ Novo usecase — cria um usecase dentro deste serviço
+- ✕ Remover do workspace — remove o serviço da árvore (a pasta permanece no disco)
+
+**Em um usecase:**
+- ✕ Remover do workspace — remove o arquivo da árvore (o arquivo permanece no disco)
+
+> Remover do workspace não exclui arquivos ou pastas do disco. Para
+> excluir permanentemente, use o explorador de arquivos do seu sistema.
+
+### Atualizando o workspace
+
+Clique no ícone de atualização (↺) na barra do workspace para reler a
+estrutura de pastas e arquivos do disco. Use isso após criar, renomear ou
+mover arquivos externamente.
+
+### Recolhendo o painel workspace
+
+Clique na seta (▾) no canto direito da barra do workspace para recolher
+o painel e ganhar mais espaço vertical para o editor. Clique novamente
+(▸) para expandir.
+
+### Atalhos de teclado
+
+| Atalho        | Ação                        |
+|---------------|-----------------------------|
+| Ctrl+S / Cmd+S | Salvar arquivo atual        |
+| Tab           | Inserir 2 espaços no editor |
+
+### Limitações do workspace
+
+- **Renomear** arquivos e pastas não é suportado pela File System Access
+  API. Faça isso no explorador de arquivos e clique em Atualizar (↺).
+- **Excluir** do disco também não é suportado; use o explorador de arquivos.
+- O workspace não é persistido entre sessões. Ao reabrir o Studio,
+  abra a pasta novamente.
+- A File System Access API requer HTTPS ou `localhost`. Não funciona
+  em páginas servidas por `file://`.
+
+
+## Estrutura geral do script
 
 Um script completo segue esta estrutura:
 
-```yaml
+```
 name: Nome do processo
 description: Descricao opcional do processo
 
@@ -86,11 +196,12 @@ Campos principais:
 - `mocks`: respostas simuladas de consultas externas.
 - `steps`: lista ordenada de passos executados pelo backend. **Obrigatorio**.
 
+
 ## Input
 
 `input` define os campos que o usuário pode preencher antes de simular.
 
-```yaml
+```
 input:
   customer_id:
     type: string
@@ -113,6 +224,7 @@ Cada campo possui:
 - `description`: texto opcional exibido como tooltip ao passar o mouse sobre o label.
 - `example`: valor inicial usado no formulário.
 
+
 Labels muito longos sao cortados visualmente com `...` para preservar o layout.
 Use `description` para explicar o campo com mais liberdade sem aumentar o
 tamanho da tela.
@@ -121,7 +233,7 @@ Os valores ficam disponíveis nas expressoes pelo objeto `input`.
 
 Exemplos:
 
-```yaml
+```
 condition: "input.customer_id != ''"
 condition: "input.order_total > 0.0"
 condition: "input.active == true"
@@ -131,7 +243,7 @@ condition: "input.active == true"
 
 `mocks` define dados simulados para consultas externas.
 
-```yaml
+```
 mocks:
   customer:
     source: "GET /customers/{input.customer_id}"
@@ -147,16 +259,15 @@ Cada mock possui:
 - `source`: descrição visual da origem da consulta.
 - `data`: objeto JSON/YAML retornado quando o mock for usado.
 
+
 Durante a simulação, o usuário pode alterar o JSON do mock na tela antes de
 executar. O backend recebe esses overrides e usa os valores editados.
 
 ## Steps
 
-`steps` e a lista de passos executados em ordem. Cada passo precisa ter `name`
-e pelo menos uma acao relevante, como `condition`, `use_mock`, `compute` ou
-`result`.
+`steps` e a lista de passos executados em ordem. Cada passo precisa ter `name` e pelo menos uma acao relevante, como `condition`, `use_mock`, `compute` ou `result`.
 
-```yaml
+```
 steps:
   - name: Validar Entrada
     condition: "input.customer_id != ''"
@@ -176,11 +287,12 @@ Campos de um passo:
 - `compute`: lista de cálculos intermediários.
 - `result`: lista de campos do resultado final.
 
+
 ## Usando mocks em steps
 
 Para carregar um mock no contexto da execucao:
 
-```yaml
+```
 - name: Buscar Cliente
   use_mock: customer
   assign: customer
@@ -188,7 +300,7 @@ Para carregar um mock no contexto da execucao:
 
 Depois disso, os dados ficam disponíveis pelo nome definido em `assign`:
 
-```yaml
+```
 - name: Validar Cliente
   condition: "customer.status == 'ACTIVE' && customer.email_verified == true"
   on_fail:
@@ -198,7 +310,7 @@ Depois disso, os dados ficam disponíveis pelo nome definido em `assign`:
 
 Se `assign` for omitido, o nome do próprio mock sera usado como variável.
 
-```yaml
+```
 - name: Buscar Cliente
   use_mock: customer
 ```
@@ -207,7 +319,7 @@ Neste caso, os dados tambem ficam em `customer`.
 
 Um passo pode carregar mock e avaliar condição ao mesmo tempo:
 
-```yaml
+```
 - name: Verificar Estoque
   use_mock: inventory
   assign: inventory
@@ -223,7 +335,7 @@ Um passo pode carregar mock e avaliar condição ao mesmo tempo:
 
 Exemplos comuns:
 
-```yaml
+```
 condition: "input.order_total > 0.0"
 condition: "customer.status == 'ACTIVE'"
 condition: "customer.risk_score <= 70.0"
@@ -240,6 +352,7 @@ Operadores comuns:
 - strings: use aspas simples dentro da expressao, como `'ACTIVE'`
 - booleanos: use `true` ou `false`
 
+
 Recomendação: use números com decimal (`10.0`, `70.0`) para evitar diferenças
 entre inteiros do YAML e numeros usados nas expressões.
 
@@ -247,7 +360,7 @@ entre inteiros do YAML e numeros usados nas expressões.
 
 `on_fail` define o que acontece quando uma `condition` retorna `false`.
 
-```yaml
+```
 on_fail:
   action: ABORT
   message: "Regra bloqueada"
@@ -259,11 +372,12 @@ Acoes suportadas:
 - `SKIP`: marca o passo como ignorado e continua a execução.
 - `CONTINUE`: registra falha no passo, mas continua a execução.
 
+
 Se `on_fail` for omitido, o passo fica como `FAILED` e a execução continua.
 
 A mensagem pode interpolar valores do contexto usando `{variavel.campo}`:
 
-```yaml
+```
 message: "Cliente {customer.id} esta com status {customer.status}"
 ```
 
@@ -271,7 +385,7 @@ message: "Cliente {customer.id} esta com status {customer.status}"
 
 `compute` cria valores intermediários a partir de expressões.
 
-```yaml
+```
 - name: Calcular Totais
   assign: totals
   compute:
@@ -285,9 +399,10 @@ O resultado do `compute` é armazenado como objeto no nome definido por `assign`
 
 No exemplo acima:
 
-```text
+```
 totals.discount_value
 totals.final_total
+
 ```
 
 Se `assign` for omitido, o resultado fica em `computed`.
@@ -296,7 +411,7 @@ Se `assign` for omitido, o resultado fica em `computed`.
 
 `result` monta o resultado final da simulação.
 
-```yaml
+```
 - name: Aprovar Pedido
   result:
     - name: status
@@ -312,11 +427,12 @@ Cada item de `result` possui:
 - `name`: nome do campo no JSON final.
 - `expr`: expressão CEL que calcula o valor.
 
+
 Quando um passo tem `result`, ele aparece como resultado final na tela.
 
 ## Exemplo Completo
 
-```yaml
+```
 name: Revisao de Pedido
 description: Avalia cliente, estoque e valor final antes de aprovar o pedido.
 
@@ -408,6 +524,7 @@ steps:
 8. Finalize com um step `result`.
 9. Teste no Studio e ajuste mocks/input até o fluxo representar bem o caso.
 
+
 ## Boas Praticas
 
 - Prefira nomes de variaveis simples: `customer`, `order`, `ticket`, `totals`.
@@ -416,4 +533,7 @@ steps:
 - Escreva mensagens de `on_fail` como decisões de negócio, nao como erros técnicos.
 - Evite colocar dados sensíveis reais nos mocks.
 - Use exemplos pequenos o suficiente para serem lidos na tela, mas completos o
-  bastante para testar decisoes importantes.
+bastante para testar decisoes importantes.
+- Em um workspace, nomeie as pastas de microserviço com o nome real do serviço
+no repositório (ex: `order-service`, `payment-api`). Isso facilita rastrear qual
+script corresponde a qual deploy.
