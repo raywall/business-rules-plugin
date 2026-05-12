@@ -61,3 +61,12 @@ steps:
         expr: "gateway.authorization_id"
       - name: amount
         expr: "input.amount"
+
+links:
+  - service: faturamento
+    usecase: emitir-recibo.yaml
+    input:
+      order_id: "result.order_id"
+      customer_id: "result.customer_id"
+      authorization_id: "result.authorization_id"
+      amount: "result.amount"

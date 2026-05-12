@@ -938,58 +938,81 @@ details[open] .pe-vars-summary::before {
   white-space: pre;
 }
 
-.pe-pipeline {
-  margin-top: 1rem;
-  border-top: 1px solid var(--pe-border);
-  padding-top: 1rem;
-}
-
-.pe-pipeline-title {
-  font-family: var(--pe-font-mono);
-  font-size: .72rem;
-  color: var(--pe-text-muted);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  margin-bottom: .65rem;
-}
-
-.pe-pipeline-card {
-  border: 1px solid var(--pe-border);
-  border-radius: var(--pe-radius-sm);
-  background: var(--pe-surface);
-  margin-top: .5rem;
-  overflow: hidden;
-}
-
-.pe-pipeline-summary {
+.pe-stage-header {
   display: flex;
   align-items: center;
-  gap: .55rem;
-  padding: .65rem .75rem;
-  cursor: pointer;
+  gap: .65rem;
+  margin: 1.15rem 0 .75rem;
 }
 
-.pe-pipeline-index {
+.pe-stage-header::before,
+.pe-stage-header::after {
+  content: "";
+  height: 1px;
+  background: var(--pe-border);
+}
+
+.pe-stage-header::before {
+  width: 18px;
+  flex: 0 0 18px;
+}
+
+.pe-stage-header::after {
+  flex: 1;
+  min-width: 24px;
+}
+
+.pe-stage-index {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
+  border: 1px solid var(--pe-border-2);
   background: var(--pe-surface-2);
   color: var(--pe-text-muted);
   font-family: var(--pe-font-mono);
-  font-size: .72rem;
+  font-size: .7rem;
+  font-weight: 700;
 }
 
-.pe-pipeline-name {
-  flex: 1;
+.pe-stage-copy {
+  flex: 0 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: .45rem;
+}
+
+.pe-stage-kicker,
+.pe-stage-ref {
+  font-family: var(--pe-font-mono);
+  font-size: .65rem;
+  color: var(--pe-text-muted);
+}
+
+.pe-stage-kicker {
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.pe-stage-copy strong {
+  color: var(--pe-text);
+  font-size: .82rem;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--pe-text);
-  font-family: var(--pe-font-mono);
-  font-size: .8rem;
+}
+
+.pe-stage-connector {
+  display: none;
+}
+
+.pe-stage-connector span {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(180deg, var(--pe-border-2), transparent);
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */

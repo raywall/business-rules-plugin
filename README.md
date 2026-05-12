@@ -105,9 +105,11 @@ links:
       amount: "result.amount"
 ```
 
-Durante a simulacao, o Studio resolve os arquivos linkados no workspace e envia
-o bundle ao backend. O backend executa a esteira end-to-end, passando o
-`result` de um usecase como input do proximo.
+Durante a simulacao, o Studio envia os YAMLs do workspace ao backend. O backend
+descobre a origem da esteira, executa end-to-end e passa o `result` de um
+usecase como input do proximo. Com isso, se `pedidos` chama `pagamentos` e
+`pagamentos` chama `faturamento`, simular `pagamentos` executa
+`pedidos -> pagamentos -> faturamento`.
 
 No preview do Studio existem duas visualizacoes:
 
@@ -118,6 +120,7 @@ Exemplos disponiveis:
 
 - `studio/workspace/pedidos/criar-pedido.yaml`
 - `studio/workspace/pagamentos/autorizar-pagamento.yaml`
+- `studio/workspace/faturamento/emitir-recibo.yaml`
 
 ## Plugin Obsidian
 

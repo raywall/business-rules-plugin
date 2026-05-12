@@ -319,11 +319,14 @@
     resultEl.style.display = 'none';
 
     try {
+      const currentScript = getCurrentScriptRef();
       const res = await fetch(`${LAMBDA_URL}/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           serial_number: serialNumber,
+          service: currentScript?.service,
+          usecase: currentScript?.usecase,
           yaml,
           input: inputData,
           mock_overrides: mockOverrides,
@@ -349,14 +352,22 @@
   }
 
   async function resolveLinkedScripts(proc, yaml) {
-    if (!proc || !Array.isArray(proc.links) || proc.links.length === 0) {
-      return [];
-    }
     if (typeof window.PROCESS_ENGINE_RESOLVE_LINKS !== 'function') {
       return [];
     }
     const resolved = await window.PROCESS_ENGINE_RESOLVE_LINKS(proc, yaml);
     return Array.isArray(resolved) ? resolved : [];
+  }
+
+  function getCurrentScriptRef() {
+    const ref = typeof window.PROCESS_ENGINE_GET_CURRENT_SCRIPT === 'function'
+      ? window.PROCESS_ENGINE_GET_CURRENT_SCRIPT()
+      : window.PROCESS_ENGINE_CURRENT_SCRIPT;
+    if (!ref || !ref.service || !ref.usecase) return null;
+    return {
+      service: String(ref.service),
+      usecase: String(ref.usecase),
+    };
   }
 
   function getSerialNumber() {
@@ -402,11 +413,22 @@
     `;
 
     const flowEl = document.getElementById(`${id}-flow`);
+    const stages = flattenExecutionStages(result);
+    const totalSteps = stages.reduce((sum, stage) => sum + stage.steps.length, 0);
+    let stepIndex = 0;
 
-    /* Animate steps */
-    for (let i = 0; i < result.steps.length; i++) {
-      await sleep(STEP_DELAY_MS);
-      appendStepCard(flowEl, result.steps[i], i, result.steps.length);
+    /* Animate pipeline as one end-to-end process */
+    for (let stageIndex = 0; stageIndex < stages.length; stageIndex++) {
+      const stage = stages[stageIndex];
+      await sleep(stageIndex === 0 ? STEP_DELAY_MS : RESULT_DELAY_MS);
+      appendStageHeader(flowEl, stage, stageIndex);
+
+      for (let localIndex = 0; localIndex < stage.steps.length; localIndex++) {
+        const step = stage.steps[localIndex];
+        await sleep(STEP_DELAY_MS);
+        appendStepCard(flowEl, step, stepIndex, totalSteps, localIndex === 0);
+        stepIndex++;
+      }
     }
 
     /* Reveal final badge */
@@ -419,42 +441,76 @@
       await sleep(RESULT_DELAY_MS);
       showFinalResult(`${id}-final-result`, result.final_result, result.final_status);
     }
+  }
 
-    if (Array.isArray(result.pipeline) && result.pipeline.length > 0) {
-      await sleep(RESULT_DELAY_MS);
-      renderPipeline(container.querySelector('.pe-trace'), result.pipeline);
+  function flattenExecutionStages(result) {
+    const stages = [];
+
+    function visit(stageResult, link) {
+      if (!stageResult) return;
+      const localStatus = inferStageStatus(stageResult);
+      const cfg = FINAL_STATUS[localStatus] || { label: localStatus || 'UNKNOWN', cls: 'gray' };
+      stages.push({
+        service: link?.service || '',
+        usecase: link?.usecase || '',
+        name: stageResult.process_name || link?.usecase || 'Processo',
+        status: localStatus,
+        statusLabel: cfg.label,
+        statusClass: cfg.cls,
+        steps: Array.isArray(stageResult.steps) ? stageResult.steps : [],
+      });
+
+      if (!Array.isArray(stageResult.pipeline)) return;
+      stageResult.pipeline.forEach(item => visit(item.result, item));
     }
+
+    visit(result, null);
+    return stages;
   }
 
-  function renderPipeline(container, pipeline) {
-    if (!container) return;
-    const section = el('div', { class: 'pe-pipeline' });
-    section.innerHTML = `<div class="pe-pipeline-title">Esteira end-to-end</div>`;
+  function inferStageStatus(stageResult) {
+    const steps = Array.isArray(stageResult?.steps) ? stageResult.steps : [];
+    if (steps.some(step => step.status === 'ERROR')) return 'ERROR';
+    if (steps.some(step => step.status === 'ABORTED')) return 'ABORTED';
+    return stageResult?.final_status || 'COMPLETED';
+  }
 
-    pipeline.forEach((item, index) => {
-      const cfg = FINAL_STATUS[item.result?.final_status] || { label: item.result?.final_status || 'UNKNOWN', cls: 'gray' };
-      const card = el('details', { class: 'pe-pipeline-card' });
-      if (index === 0) card.open = true;
-      card.innerHTML = `
-        <summary class="pe-pipeline-summary">
-          <span class="pe-pipeline-index">${index + 1}</span>
-          <span class="pe-pipeline-name">${esc(item.service)}/${esc(item.usecase)}</span>
-          <span class="pe-final-badge pe-badge-${cfg.cls}">${esc(cfg.label)}</span>
-        </summary>
-        <pre class="pe-vars-pre">${esc(JSON.stringify(item.result?.final_result || {}, null, 2))}</pre>
-      `;
-      section.appendChild(card);
+  function appendStageHeader(container, stage, index) {
+    if (index > 0) {
+      const connector = el('div', { class: 'pe-stage-connector' });
+      connector.innerHTML = `<span></span>`;
+      container.appendChild(connector);
+    }
+
+    const node = el('div', { class: 'pe-stage-header pe-entering' });
+    const ref = stage.service || stage.usecase
+      ? `<span class="pe-stage-ref">${esc([stage.service, stage.usecase].filter(Boolean).join('/'))}</span>`
+      : '';
+    node.innerHTML = `
+      <div class="pe-stage-index">${index + 1}</div>
+      <div class="pe-stage-copy">
+        <span class="pe-stage-kicker">Etapa da esteira</span>
+        <strong>${esc(stage.name)}</strong>
+        ${ref}
+      </div>
+      <span class="pe-final-badge pe-badge-${stage.statusClass}">${esc(stage.statusLabel)}</span>
+    `;
+    container.appendChild(node);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        node.classList.remove('pe-entering');
+        node.classList.add('pe-entered');
+      });
     });
-
-    container.appendChild(section);
   }
 
-  function appendStepCard(container, step, index, total) {
+  function appendStepCard(container, step, index, total, isFirstInStage = false) {
     const cfg = STATUS[step.status] || { label: step.status, icon: '?', cls: 'gray' };
     const isLast = index === total - 1;
 
     /* Connector arrow */
-    if (index > 0) {
+    if (index > 0 && !isFirstInStage) {
       const arrow = el('div', { class: `pe-connector pe-connector-${cfg.cls}` });
       arrow.innerHTML = `<span class="pe-connector-line"></span><span class="pe-connector-arrow">▼</span>`;
       container.appendChild(arrow);

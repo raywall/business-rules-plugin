@@ -15,7 +15,7 @@ input:
     label: "Cliente"
     description: "Identificador do cliente comprador."
     example: "CUS-900"
-  total:
+  amount:
     type: number
     label: "Total"
     description: "Valor total do pedido."
@@ -23,7 +23,7 @@ input:
 
 steps:
   - name: Validar Pedido
-    condition: "input.order_id != '' && input.customer_id != '' && input.total > 0.0"
+    condition: "input.order_id != '' && input.customer_id != '' && input.amount > 0.0"
     on_fail:
       action: ABORT
       message: "Pedido invalido para pagamento"
@@ -36,7 +36,7 @@ steps:
       - name: customer_id
         expr: "input.customer_id"
       - name: amount
-        expr: "input.total"
+        expr: "input.amount"
       - name: currency
         expr: "'BRL'"
 

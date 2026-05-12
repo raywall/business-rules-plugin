@@ -464,6 +464,12 @@ As expressoes de `input` sao avaliadas com CEL e recebem:
 Se `input` for omitido ou estiver vazio, o backend envia todo o `result` do
 usecase anterior como input do proximo.
 
+Ao simular um arquivo no Studio, o workspace completo e enviado ao backend. Se o
+arquivo selecionado estiver no meio da esteira, o backend procura usecases
+anteriores que apontam para ele, inicia pela origem e continua ate o ultimo
+link. Por exemplo: simular `pagamentos/autorizar-pagamento.yaml` em uma esteira
+`pedidos -> pagamentos -> faturamento` executa os tres usecases nessa ordem.
+
 Exemplo end-to-end:
 
 ```yaml
@@ -473,9 +479,9 @@ input:
     type: string
     label: "Pedido"
     example: "ORD-1001"
-  total:
+  amount:
     type: number
-    label: "Total"
+    label: "Valor"
     example: 349.90
 
 steps:
@@ -484,7 +490,7 @@ steps:
       - name: order_id
         expr: "input.order_id"
       - name: amount
-        expr: "input.total"
+        expr: "input.amount"
 
 links:
   - service: pagamentos
@@ -494,11 +500,12 @@ links:
       amount: "result.amount"
 ```
 
-O Studio inclui dois exemplos prontos:
+O Studio inclui tres exemplos prontos:
 
 ```text
 studio/workspace/pedidos/criar-pedido.yaml
 studio/workspace/pagamentos/autorizar-pagamento.yaml
+studio/workspace/faturamento/emitir-recibo.yaml
 ```
 
 No preview do Studio, use a visualizacao `Detalhada` para simular a regra etapa
@@ -509,7 +516,9 @@ microservicos conectados. Para o exemplo acima, o Studio monta uma relacao como:
 flowchart LR
   pedidos["Criar pedido"]
   pagamentos["Autorizar Pagamento"]
+  faturamento["Emitir recibo"]
   pedidos --> pagamentos
+  pagamentos --> faturamento
 ```
 
 ## Exemplo Completo

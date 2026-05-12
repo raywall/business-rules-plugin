@@ -417,39 +417,28 @@ function truncateText(value, maxLength) {
   return text.slice(0, Math.max(1, maxLength - 3)).trimEnd() + '...';
 }
 
-window.PROCESS_ENGINE_RESOLVE_LINKS = async function resolveWorkspaceLinks(proc) {
+window.PROCESS_ENGINE_GET_CURRENT_SCRIPT = function getCurrentWorkspaceScript() {
+  if (!state.current.serviceName || !state.current.fileName) return null;
+  return {
+    service: state.current.serviceName,
+    usecase: state.current.fileName,
+  };
+};
+
+window.PROCESS_ENGINE_RESOLVE_LINKS = async function resolveWorkspaceLinks() {
   const resolved = [];
-  const seen = new Set();
+  if (!state.workspace.tree.length) return resolved;
 
-  async function visit(processDoc) {
-    if (!processDoc || !Array.isArray(processDoc.links)) return;
-
-    for (const link of processDoc.links) {
-      if (!link || !link.service || !link.usecase) continue;
-
-      const serviceName = String(link.service);
-      const usecaseName = normalizeUsecaseName(link.usecase);
-      const key = `${serviceName}/${usecaseName}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const file = findWorkspaceFile(serviceName, usecaseName);
-      if (!file) {
-        throw new Error(`Usecase interligado nao encontrado no workspace: ${key}`);
-      }
-
+  for (const service of state.workspace.tree) {
+    for (const file of service.children) {
       const yaml = await FS.readFile(file.handle);
-      resolved.push({ service: serviceName, usecase: usecaseName, yaml });
-
-      try {
-        await visit(jsyaml.load(yaml));
-      } catch (error) {
-        throw new Error(`Erro lendo links de ${key}: ${error.message}`);
-      }
+      resolved.push({
+        service: service.name,
+        usecase: file.name,
+        yaml,
+      });
     }
   }
-
-  await visit(proc);
   return resolved;
 };
 
