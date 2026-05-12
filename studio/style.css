@@ -647,7 +647,22 @@ body {
 
 .preview-actions {
   display: flex;
+  align-items: center;
   gap: 6px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.view-toggle .tool-button {
+  border-color: transparent;
+  background: transparent;
 }
 
 .tool-button {
@@ -663,8 +678,20 @@ body {
 }
 
 .tool-button:hover {
-  background: var(--surface-3);
-  color: var(--text-primary);
+  background: var(--accent);
+  color: #fff;
+}
+
+.tool-button--active,
+.tool-button--active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-secondary);
+  font-weight: bold;
+}
+
+.tool-button--active:hover {
+  color:#fff;
 }
 
 /* viewer shell */
@@ -677,6 +704,10 @@ body {
 #viewer {
   max-width: 800px;
   margin: 0 auto;
+}
+
+#viewer.viewer--macro {
+  max-width: none;
 }
 
 [data-theme="light"] #viewer .pe-widget {
@@ -710,6 +741,94 @@ body {
   --pe-orange-bg: #fff4e5;
   --pe-orange-border: #f0cf9f;
   color-scheme: light;
+}
+
+/* flowchart */
+.flowchart-view {
+  min-width: 640px;
+  color: var(--text-primary);
+}
+
+.flowchart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.flowchart-header h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+.flowchart-header span {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.flowchart-canvas {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.flowchart-svg {
+  display: block;
+  min-width: 100%;
+}
+
+.flowchart-edge {
+  fill: none;
+  stroke: var(--border-2);
+  stroke-width: 2;
+}
+
+.flowchart-arrow {
+  fill: var(--border-2);
+}
+
+.flowchart-node rect {
+  fill: var(--surface-2);
+  stroke: var(--border-2);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .18));
+}
+
+.flowchart-node--missing rect {
+  stroke: var(--error);
+  stroke-dasharray: 5 4;
+}
+
+.flowchart-node text {
+  dominant-baseline: middle;
+  font-family: inherit;
+  pointer-events: none;
+}
+
+.flowchart-service {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.flowchart-label {
+  fill: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.flowchart-file {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 /* ================================================================

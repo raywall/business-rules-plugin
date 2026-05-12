@@ -1,5 +1,5 @@
 id: "10000000-0000-4000-a000-000000000002"
-name: Autorizar Pagamento
+name: Autorizar pagamento
 description: |
   Exemplo de usecase em outro microservico. Recebe como input o output do
   usecase pedidos/criar-pedido.yaml.

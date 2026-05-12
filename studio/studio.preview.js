@@ -151,8 +151,32 @@ Object.assign(Actions, {
     el.rulesTitle.textContent = doc?.name || 'Simulador';
     el.viewer.innerHTML = '';
 
+    if (state.previewMode === 'macro') {
+      await this.renderMacro(doc, yaml);
+      return;
+    }
+
+    el.viewer.classList.remove('viewer--macro');
     await PluginBridge.render(el.viewer, yaml);
     this.applyPreviewTheme();
+  },
+
+  setPreviewMode(mode) {
+    state.previewMode = mode === 'macro' ? 'macro' : 'detail';
+    localStorage.setItem(STORAGE_KEYS.previewMode, state.previewMode);
+    this.syncPreviewModeButtons();
+    this.render();
+  },
+
+  syncPreviewModeButtons() {
+    el.viewDetail?.classList.toggle('tool-button--active', state.previewMode === 'detail');
+    el.viewMacro?.classList.toggle('tool-button--active', state.previewMode === 'macro');
+  },
+
+  async renderMacro(doc, yaml) {
+    el.viewer.classList.add('viewer--macro');
+    const graph = await Flowchart.build(doc);
+    el.viewer.innerHTML = Flowchart.render(graph);
   },
 
   toggleTheme() {
@@ -209,6 +233,189 @@ Object.assign(Actions, {
     }
   }
 });
+
+const Flowchart = {
+  async build(rootDoc) {
+    const nodes = [];
+    const edges = [];
+    const visited = new Set();
+    const rootService = state.current.serviceName || 'script';
+    const rootUsecase = state.current.fileName || 'atual.yaml';
+    const rootKey = `${rootService}/${rootUsecase}`;
+
+    async function visit(doc, service, usecase, depth, sourceKey = null) {
+      const key = `${service}/${usecase}`;
+      let node = nodes.find(item => item.key === key);
+      if (!node) {
+        node = {
+          key,
+          service,
+          usecase,
+          label: doc?.name || stripYamlExtension(usecase),
+          description: doc?.description || '',
+          depth,
+          missing: false,
+        };
+        nodes.push(node);
+      } else {
+        node.depth = Math.min(node.depth, depth);
+      }
+
+      if (sourceKey) edges.push({ from: sourceKey, to: key });
+      if (visited.has(key)) return;
+      visited.add(key);
+
+      if (!doc || !Array.isArray(doc.links)) return;
+      for (const link of doc.links) {
+        if (!link || !link.service || !link.usecase) continue;
+        const targetService = String(link.service);
+        const targetUsecase = normalizeUsecaseName(link.usecase);
+        const targetKey = `${targetService}/${targetUsecase}`;
+        const file = findWorkspaceFile(targetService, targetUsecase);
+        if (!file) {
+          if (!nodes.find(item => item.key === targetKey)) {
+            nodes.push({
+              key: targetKey,
+              service: targetService,
+              usecase: targetUsecase,
+              label: stripYamlExtension(targetUsecase),
+              description: 'Usecase nao encontrado no workspace.',
+              depth: depth + 1,
+              missing: true,
+            });
+          }
+          edges.push({ from: key, to: targetKey });
+          continue;
+        }
+
+        const yaml = await FS.readFile(file.handle);
+        let targetDoc = null;
+        try {
+          targetDoc = jsyaml.load(yaml);
+        } catch (_) {
+          targetDoc = { name: stripYamlExtension(targetUsecase), description: 'YAML invalido.' };
+        }
+        await visit(targetDoc, targetService, targetUsecase, depth + 1, key);
+      }
+    }
+
+    await visit(rootDoc, rootService, rootUsecase, 0);
+    return { rootKey, nodes, edges: dedupeEdges(edges) };
+  },
+
+  render(graph) {
+    const levels = groupByDepth(graph.nodes);
+    const nodeWidth = 210;
+    const nodeHeight = 74;
+    const xGap = 290;
+    const yGap = 118;
+    const margin = 48;
+    const positions = new Map();
+    const maxDepth = Math.max(0, ...graph.nodes.map(node => node.depth));
+    let maxRows = 1;
+
+    levels.forEach((levelNodes, depth) => {
+      maxRows = Math.max(maxRows, levelNodes.length);
+      levelNodes.forEach((node, index) => {
+        positions.set(node.key, {
+          x: margin + depth * xGap,
+          y: margin + index * yGap,
+        });
+      });
+    });
+
+    const width = margin * 2 + nodeWidth + maxDepth * xGap;
+    const height = margin * 2 + nodeHeight + (maxRows - 1) * yGap;
+    const edgeMarkup = graph.edges.map(edge => renderEdge(edge, positions, nodeWidth, nodeHeight)).join('');
+    const nodeMarkup = graph.nodes.map(node => renderNode(node, positions.get(node.key), nodeWidth, nodeHeight)).join('');
+    const hasLinks = graph.edges.length > 0;
+
+    return `
+      <section class="flowchart-view" aria-label="Visualizacao macro dos microservicos">
+        <div class="flowchart-header">
+          <div>
+            <p class="eyebrow">Flowchart</p>
+            <h3>${hasLinks ? 'Esteira end-to-end' : 'Usecase isolado'}</h3>
+          </div>
+          <span>${graph.nodes.length} node${graph.nodes.length === 1 ? '' : 's'}</span>
+        </div>
+        <div class="flowchart-canvas">
+          <svg class="flowchart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Microservicos interligados">
+            <defs>
+              <marker id="flowArrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" class="flowchart-arrow" />
+              </marker>
+            </defs>
+            ${edgeMarkup}
+            ${nodeMarkup}
+          </svg>
+        </div>
+      </section>
+    `;
+  },
+};
+
+function groupByDepth(nodes) {
+  const levels = [];
+  [...nodes].sort((a, b) => a.depth - b.depth || a.service.localeCompare(b.service) || a.usecase.localeCompare(b.usecase))
+    .forEach(node => {
+      if (!levels[node.depth]) levels[node.depth] = [];
+      levels[node.depth].push(node);
+    });
+  return levels;
+}
+
+function renderEdge(edge, positions, nodeWidth, nodeHeight) {
+  const from = positions.get(edge.from);
+  const to = positions.get(edge.to);
+  if (!from || !to) return '';
+  const startX = from.x + nodeWidth;
+  const startY = from.y + nodeHeight / 2;
+  const endX = to.x;
+  const endY = to.y + nodeHeight / 2;
+  const midX = startX + Math.max(40, (endX - startX) / 2);
+  const path = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX - 10} ${endY}`;
+  return `<path class="flowchart-edge" d="${path}" marker-end="url(#flowArrow)" />`;
+}
+
+function renderNode(node, position, nodeWidth, nodeHeight) {
+  if (!position) return '';
+  const label = truncateText(node.label, 28);
+  const service = truncateText(node.service, 24);
+  const file = truncateText(node.usecase, 30);
+  const classes = ['flowchart-node'];
+  if (node.missing) classes.push('flowchart-node--missing');
+
+  return `
+    <g class="${classes.join(' ')}" transform="translate(${position.x} ${position.y})">
+      <title>${esc(node.description || `${node.service}/${node.usecase}`)}</title>
+      <rect width="${nodeWidth}" height="${nodeHeight}" rx="8" />
+      <text class="flowchart-service" x="14" y="22">${esc(service)}</text>
+      <text class="flowchart-label" x="14" y="45">${esc(label)}</text>
+      <text class="flowchart-file" x="14" y="62">${esc(file)}</text>
+    </g>
+  `;
+}
+
+function dedupeEdges(edges) {
+  const seen = new Set();
+  return edges.filter(edge => {
+    const key = `${edge.from}->${edge.to}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function stripYamlExtension(fileName) {
+  return String(fileName).replace(/\.(yaml|yml)$/i, '');
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || '');
+  if (text.length <= maxLength) return text;
+  return text.slice(0, Math.max(1, maxLength - 3)).trimEnd() + '...';
+}
 
 window.PROCESS_ENGINE_RESOLVE_LINKS = async function resolveWorkspaceLinks(proc) {
   const resolved = [];

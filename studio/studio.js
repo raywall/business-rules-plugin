@@ -107,6 +107,7 @@ const STORAGE_KEYS = {
   workspaceCollapsed: 'STUDIO_WORKSPACE_COLLAPSED',
   currentFile: 'STUDIO_CURRENT_FILE',
   expandedServices: 'STUDIO_EXPANDED_SERVICES',
+  previewMode: 'STUDIO_PREVIEW_MODE',
 };
 
 const WORKSPACE_DB = {
@@ -160,6 +161,8 @@ const el = {
   viewer: $('viewer'),
   rulesTitle: $('rulesTitle'),
   toggleTheme: $('toggleTheme'),
+  viewDetail: $('viewDetail'),
+  viewMacro: $('viewMacro'),
   setSerial: $('setSerial'),
   setEngine: $('setEngine'),
   workspacePanel: $('workspacePanel'),
@@ -189,7 +192,8 @@ const state = {
   },
   dirty: false,
   collapsed: localStorage.getItem(STORAGE_KEYS.workspaceCollapsed) === 'true',
-  theme: localStorage.getItem(STORAGE_KEYS.theme) || 'dark'
+  theme: localStorage.getItem(STORAGE_KEYS.theme) || 'dark',
+  previewMode: localStorage.getItem(STORAGE_KEYS.previewMode) === 'macro' ? 'macro' : 'detail'
 };
 
 /* ================================================================
@@ -379,6 +383,7 @@ async function init() {
   document.body.dataset.theme = state.theme;
   el.toggleTheme.textContent = state.theme === 'light' ? 'Dark' : 'Light';
   StudioPersistence.applySavedLayout();
+  Actions.syncPreviewModeButtons?.();
 
   if (el.newServiceBtn) el.newServiceBtn.disabled = true;
   if (el.newUsecaseBtn) el.newUsecaseBtn.disabled = true;
@@ -409,6 +414,8 @@ async function init() {
   });
 
   el.toggleTheme.addEventListener('click', () => Actions.toggleTheme());
+  el.viewDetail?.addEventListener('click', () => Actions.setPreviewMode('detail'));
+  el.viewMacro?.addEventListener('click', () => Actions.setPreviewMode('macro'));
   el.setSerial.addEventListener('click', () => Actions.configureSerial());
   el.setEngine.addEventListener('click', () => Actions.configureEngine());
 

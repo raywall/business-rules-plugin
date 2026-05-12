@@ -109,6 +109,11 @@ Durante a simulacao, o Studio resolve os arquivos linkados no workspace e envia
 o bundle ao backend. O backend executa a esteira end-to-end, passando o
 `result` de um usecase como input do proximo.
 
+No preview do Studio existem duas visualizacoes:
+
+- `Detalhada`: renderiza a tela de simulacao e mostra a execucao etapa a etapa.
+- `Macro`: monta um flowchart dos microservicos/usecases conectados por `links`.
+
 Exemplos disponiveis:
 
 - `studio/workspace/pedidos/criar-pedido.yaml`

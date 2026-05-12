@@ -501,6 +501,17 @@ studio/workspace/pedidos/criar-pedido.yaml
 studio/workspace/pagamentos/autorizar-pagamento.yaml
 ```
 
+No preview do Studio, use a visualizacao `Detalhada` para simular a regra etapa
+a etapa. Use a visualizacao `Macro` para inspecionar o flowchart dos
+microservicos conectados. Para o exemplo acima, o Studio monta uma relacao como:
+
+```mermaid
+flowchart LR
+  pedidos["Criar pedido"]
+  pagamentos["Autorizar Pagamento"]
+  pedidos --> pagamentos
+```
+
 ## Exemplo Completo
 
 ```
