@@ -22,6 +22,7 @@
   const LAMBDA_URL = normalizeEngineUrl(window.PROCESS_ENGINE_URL || 'https://rules.raysouz.studio');
   const STEP_DELAY_MS = 380;   // delay between step card reveals
   const RESULT_DELAY_MS = 600; // extra delay before final result card
+  const MAX_ENCRYPTED_GET_URL_LENGTH = 7500;
 
   /* ── Block registry ────────────────────────────────────────────────────── */
   const _blocks = {};
@@ -322,15 +323,16 @@
 
     try {
       const currentScript = getCurrentScriptRef();
-      const encryptedPayload = await securePayload({
+      const simulationPayload = {
         service: currentScript?.service,
         usecase: currentScript?.usecase,
         yaml,
         input: inputData,
         mock_overrides: mockOverrides,
         linked_scripts: linkedScripts,
-      });
-      const res = await postSecureSimulation(serialNumber, encryptedPayload);
+      };
+      const encryptedPayload = await securePayload(simulationPayload);
+      const res = await postSecureSimulation(serialNumber, encryptedPayload, simulationPayload);
 
       const responseText = await res.text();
       const result = await readSecureResponse(responseText);
@@ -372,17 +374,50 @@
     return encryptJSON(secret, payload);
   }
 
-  async function postSecureSimulation(serialNumber, encrypted) {
+  async function postSecureSimulation(serialNumber, encrypted, plainPayload) {
+    const attempts = [
+      () => postEncryptedForm(serialNumber, encrypted),
+      () => getEncryptedQuery(serialNumber, encrypted),
+      () => postEncryptedJSON(serialNumber, encrypted),
+      () => postPlainJSON(serialNumber, plainPayload),
+    ];
+    let lastError;
+    for (const attempt of attempts) {
+      try {
+        const res = await attempt();
+        if (![400, 403, 415].includes(res.status)) return res;
+        lastError = new Error(`HTTP ${res.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  function encryptedParams(serialNumber, encrypted) {
     const body = new URLSearchParams();
     body.set('serial_number', serialNumber);
     body.set('iv', encrypted.iv);
     body.set('data', encrypted.data);
-    const res = await fetch(`${LAMBDA_URL}/simulate`, {
-      method: 'POST',
-      body,
-    });
-    if (res.status !== 400) return res;
+    return body;
+  }
 
+  function postEncryptedForm(serialNumber, encrypted) {
+    return fetch(`${LAMBDA_URL}/simulate`, {
+      method: 'POST',
+      body: encryptedParams(serialNumber, encrypted),
+    });
+  }
+
+  function getEncryptedQuery(serialNumber, encrypted) {
+    const url = `${LAMBDA_URL}/simulate?${encryptedParams(serialNumber, encrypted).toString()}`;
+    if (url.length > MAX_ENCRYPTED_GET_URL_LENGTH) {
+      throw new Error('encrypted GET payload too large');
+    }
+    return fetch(url, { method: 'GET' });
+  }
+
+  function postEncryptedJSON(serialNumber, encrypted) {
     return fetch(`${LAMBDA_URL}/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -390,6 +425,17 @@
         serial_number: serialNumber,
         encrypted: true,
         payload: encrypted,
+      }),
+    });
+  }
+
+  function postPlainJSON(serialNumber, payload) {
+    return fetch(`${LAMBDA_URL}/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serial_number: serialNumber,
+        ...payload,
       }),
     });
   }
