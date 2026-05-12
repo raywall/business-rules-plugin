@@ -28,8 +28,8 @@ localmente. O bloco, inputs e mocks sao criptografados antes do envio, e a
 resposta e descriptografada antes da exibicao.
 
 Para reduzir bloqueios de proxy corporativo, o envio para `POST /simulate` usa
-`Content-Type: text/plain` com um envelope simples contendo apenas serial, IV e
-payload criptografado.
+um corpo `application/x-www-form-urlencoded`, como uma submissao de formulario,
+contendo apenas serial, IV e payload criptografado.
 
 ## Usar em uma nota
 

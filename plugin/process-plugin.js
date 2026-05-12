@@ -332,7 +332,6 @@
       });
       const res = await fetch(`${LAMBDA_URL}/simulate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body,
       });
 
@@ -374,7 +373,11 @@
   async function secureRequestBody(serialNumber, payload) {
     const secret = await getCryptoSecret();
     const encrypted = await encryptJSON(secret, payload);
-    return ['BR1', serialNumber, encrypted.iv, encrypted.data].join('\n');
+    const body = new URLSearchParams();
+    body.set('serial_number', serialNumber);
+    body.set('iv', encrypted.iv);
+    body.set('data', encrypted.data);
+    return body;
   }
 
   async function readSecureResponse(text) {
