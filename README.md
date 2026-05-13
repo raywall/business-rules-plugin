@@ -47,14 +47,8 @@ Exemplo com query string:
 http://localhost:5173/studio/?serial=SEU-UUID
 ```
 
-O Studio busca automaticamente a chave de transporte em
-`GET /crypto-key` no backend e salva em cache local. O YAML, inputs, mocks e
-scripts interligados sao criptografados antes do envio, e a resposta e
-descriptografada no navegador antes da exibicao.
-
-Para reduzir bloqueios de proxy corporativo, o envio para `POST /simulate` usa
-um corpo `application/x-www-form-urlencoded`, como uma submissao de formulario,
-contendo apenas serial, IV e payload criptografado.
+O Studio envia YAML, inputs, mocks e scripts interligados diretamente como JSON
+para `POST /simulate`, e exibe a resposta JSON do backend.
 
 Tambem e possivel configurar o backend:
 
@@ -145,8 +139,6 @@ No Obsidian, configure:
 - tema `Dark` ou `Clear`
 
 O endpoint do backend no Obsidian e fixo em `https://rules.raysouz.studio`.
-A chave de transporte e recuperada automaticamente em `GET /crypto-key` e salva
-localmente.
 
 Use em uma nota:
 

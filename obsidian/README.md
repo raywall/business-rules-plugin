@@ -22,14 +22,8 @@ Em `Settings > Business Rules Emulator`, configure:
 - `Numero de serie` com um serial ativo da assinatura.
 - `Estilo` como `Dark` ou `Clear`.
 
-O endpoint do backend e fixo em `https://rules.raysouz.studio`. A chave de
-transporte e recuperada automaticamente em `GET /crypto-key` e salva
-localmente. O bloco, inputs e mocks sao criptografados antes do envio, e a
-resposta e descriptografada antes da exibicao.
-
-Para reduzir bloqueios de proxy corporativo, o envio para `POST /simulate` usa
-um corpo `application/x-www-form-urlencoded`, como uma submissao de formulario,
-contendo apenas serial, IV e payload criptografado.
+O endpoint do backend e fixo em `https://rules.raysouz.studio`. O bloco, inputs
+e mocks sao enviados diretamente como JSON para `POST /simulate`.
 
 ## Usar em uma nota
 
@@ -80,5 +74,5 @@ steps:
 ```
 ````
 
-O plugin monta o formulario, permite editar mocks em JSON e envia um envelope
-criptografado para `POST /simulate`.
+O plugin monta o formulario, permite editar mocks em JSON e envia a simulacao
+para `POST /simulate`.
