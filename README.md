@@ -52,6 +52,14 @@ para `POST /simulate`, e exibe a resposta JSON do backend.
 Em redes governadas que bloqueiam upload cross-origin, o Studio tenta fallback
 via `GET /simulate?request=...` quando o payload cabe na URL.
 
+Para ambientes governados, prefira usar o Studio no mesmo dominio do backend:
+
+```text
+https://rules.raysouz.studio/studio/
+```
+
+Esse caminho evita a chamada cross-origin `raywall.github.io -> rules.raysouz.studio`.
+
 Tambem e possivel configurar o backend:
 
 ```text
@@ -180,6 +188,14 @@ Ele publica apenas:
 Assim `studio/index.html` consegue carregar `../plugin/process-plugin.js` e
 `../plugin/process-plugin.css` sem levar `node_modules` ou arquivos de build do
 Obsidian para o Pages.
+
+O mesmo workflow tambem pode publicar os assets em S3 para o Studio same-origin,
+desde que as variaveis e segredo abaixo existam no GitHub:
+
+- `vars.STUDIO_S3_BUCKET`
+- `vars.STUDIO_CLOUDFRONT_DISTRIBUTION_ID`
+- `vars.AWS_REGION`
+- `secrets.AWS_STUDIO_DEPLOY_ROLE_ARN`
 
 ## Releases
 

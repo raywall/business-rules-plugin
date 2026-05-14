@@ -27,6 +27,9 @@ e mocks sao enviados diretamente como JSON para `POST /simulate`.
 Em redes governadas que bloqueiam upload, o plugin tenta fallback via
 `GET /simulate?request=...` quando o payload cabe na URL.
 
+Para uso no navegador em ambiente governado, prefira o Studio same-origin em
+`https://rules.raysouz.studio/studio/`.
+
 ## Usar em uma nota
 
 Crie um bloco:

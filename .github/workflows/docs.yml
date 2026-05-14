@@ -57,6 +57,22 @@ jobs:
         with:
           path: pages-dist
 
+      - name: configurar aws
+        if: ${{ vars.STUDIO_S3_BUCKET != '' && vars.STUDIO_CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_STUDIO_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: publicar studio same-origin
+        if: ${{ vars.STUDIO_S3_BUCKET != '' && vars.STUDIO_CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        shell: bash
+        run: |
+          aws s3 sync pages-dist "s3://${{ vars.STUDIO_S3_BUCKET }}" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.STUDIO_CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/studio/*" "/plugin/*" "/index.html"
+
   deploy:
     name: publicar pages
     runs-on: ubuntu-latest
