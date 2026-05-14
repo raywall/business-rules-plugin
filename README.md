@@ -49,6 +49,8 @@ http://localhost:5173/studio/?serial=SEU-UUID
 
 O Studio envia YAML, inputs, mocks e scripts interligados diretamente como JSON
 para `POST /simulate`, e exibe a resposta JSON do backend.
+Em redes governadas que bloqueiam upload cross-origin, o Studio tenta fallback
+via `GET /simulate?request=...` quando o payload cabe na URL.
 
 Tambem e possivel configurar o backend:
 

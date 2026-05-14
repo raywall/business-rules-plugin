@@ -24,6 +24,8 @@ Em `Settings > Business Rules Emulator`, configure:
 
 O endpoint do backend e fixo em `https://rules.raysouz.studio`. O bloco, inputs
 e mocks sao enviados diretamente como JSON para `POST /simulate`.
+Em redes governadas que bloqueiam upload, o plugin tenta fallback via
+`GET /simulate?request=...` quando o payload cabe na URL.
 
 ## Usar em uma nota
 

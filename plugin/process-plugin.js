@@ -22,6 +22,7 @@
   const LAMBDA_URL = normalizeEngineUrl(window.PROCESS_ENGINE_URL || 'https://rules.raysouz.studio');
   const STEP_DELAY_MS = 380;   // delay between step card reveals
   const RESULT_DELAY_MS = 600; // extra delay before final result card
+  const MAX_GET_URL_LENGTH = 7500;
 
   /* ── Block registry ────────────────────────────────────────────────────── */
   const _blocks = {};
@@ -320,19 +321,16 @@
 
     try {
       const currentScript = getCurrentScriptRef();
-      const res = await fetch(`${LAMBDA_URL}/simulate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serial_number: serialNumber,
-          service: currentScript?.service,
-          usecase: currentScript?.usecase,
-          yaml,
-          input: inputData,
-          mock_overrides: mockOverrides,
-          linked_scripts: linkedScripts,
-        }),
-      });
+      const requestBody = {
+        serial_number: serialNumber,
+        service: currentScript?.service,
+        usecase: currentScript?.usecase,
+        yaml,
+        input: inputData,
+        mock_overrides: mockOverrides,
+        linked_scripts: linkedScripts,
+      };
+      const res = await requestSimulation(requestBody);
       const responseText = await res.text();
       const result = JSON.parse(responseText);
       if (!res.ok) {
@@ -366,6 +364,41 @@
       service: String(ref.service),
       usecase: String(ref.usecase),
     };
+  }
+
+  async function requestSimulation(requestBody) {
+    const body = JSON.stringify(requestBody);
+    const attempts = [
+      () => fetch(`${LAMBDA_URL}/simulate`, { method: 'POST', body }),
+      () => fetch(buildGetSimulationUrl(body), { method: 'GET' }),
+      () => fetch(`${LAMBDA_URL}/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      }),
+    ];
+
+    let lastError;
+    for (const attempt of attempts) {
+      try {
+        const res = await attempt();
+        if (![400, 403, 415].includes(res.status)) return res;
+        lastError = new Error(`HTTP ${res.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  function buildGetSimulationUrl(body) {
+    const params = new URLSearchParams();
+    params.set('request', body);
+    const url = `${LAMBDA_URL}/simulate?${params.toString()}`;
+    if (url.length > MAX_GET_URL_LENGTH) {
+      throw new Error('GET payload too large');
+    }
+    return url;
   }
 
   function getSerialNumber() {

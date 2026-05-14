@@ -61,6 +61,7 @@ const DEFAULT_SETTINGS: RulesPluginSettings = {
 const ENGINE_URL = 'https://rules.raysouz.studio';
 const STEP_DELAY_MS = 380;
 const RESULT_DELAY_MS = 600;
+const MAX_GET_URL_LENGTH = 7500;
 
 const STATUS: Record<string, { label: string; icon: string; cls: string }> = {
   PASSED: { label: 'Passou', icon: '✓', cls: 'green' },
@@ -276,16 +277,11 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
     resultEl.style.display = 'none';
 
     try {
-      const response = await requestUrl({
-        url: `${this.engineBaseUrl()}/simulate`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serial_number: this.settings.serialNumber.trim(),
-          yaml,
-          input: inputData,
-          mock_overrides: mockOverrides,
-        }),
+      const response = await this.requestSimulation({
+        serial_number: this.settings.serialNumber.trim(),
+        yaml,
+        input: inputData,
+        mock_overrides: mockOverrides,
       });
       const result = JSON.parse(response.text) as SimulationResult;
       if (response.status < 200 || response.status >= 300) {
@@ -452,6 +448,49 @@ export default class BusinessRulesEmulatorPlugin extends Plugin {
 
   private engineBaseUrl(): string {
     return ENGINE_URL;
+  }
+
+  private async requestSimulation(body: Record<string, unknown>) {
+    const text = JSON.stringify(body);
+    const attempts = [
+      () => requestUrl({
+        url: `${this.engineBaseUrl()}/simulate`,
+        method: 'POST',
+        body: text,
+      }),
+      () => requestUrl({
+        url: this.buildGetSimulationUrl(text),
+        method: 'GET',
+      }),
+      () => requestUrl({
+        url: `${this.engineBaseUrl()}/simulate`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: text,
+      }),
+    ];
+
+    let lastError: unknown;
+    for (const attempt of attempts) {
+      try {
+        const response = await attempt();
+        if (![400, 403, 415].includes(response.status)) return response;
+        lastError = new Error(`HTTP ${response.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  private buildGetSimulationUrl(body: string): string {
+    const params = new URLSearchParams();
+    params.set('request', body);
+    const url = `${this.engineBaseUrl()}/simulate?${params.toString()}`;
+    if (url.length > MAX_GET_URL_LENGTH) {
+      throw new Error('GET payload too large');
+    }
+    return url;
   }
 }
 
