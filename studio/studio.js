@@ -149,6 +149,8 @@ const $ = id => document.getElementById(id);
 
 const el = {
   source: $('rulesSource'),
+  editorFrame: $('editorFrame'),
+  stepOverlay: $('editorStepOverlay'),
   lineNumbers: $('editorLineNumbers'),
   lint: $('editorLint'),
   stats: $('editorStats'),

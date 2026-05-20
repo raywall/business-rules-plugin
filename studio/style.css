@@ -438,6 +438,7 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--bg);
   min-height: 0;
+  position: relative;
 }
 
 .editor-lines {
@@ -454,6 +455,75 @@ body {
   user-select: none;
   white-space: pre;
   min-width: 38px;
+  position: relative;
+  z-index: 3;
+}
+
+.editor-step-overlay {
+  position: absolute;
+  right: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.editor-step-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      color-mix(in srgb, var(--accent) 5%, transparent) 45%,
+      transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent);
+  opacity: .85;
+}
+
+.editor-step-marker:nth-child(even) {
+  border-left-color: color-mix(in srgb, var(--ok) 58%, transparent);
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--ok) 13%, transparent),
+      color-mix(in srgb, var(--ok) 4%, transparent) 45%,
+      transparent);
+}
+
+.editor-step-marker span {
+  position: absolute;
+  top: 3px;
+  left: 7px;
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 86%, var(--accent));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.editor-step-marker--active {
+  border-left-color: var(--warn);
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--warn) 24%, transparent),
+      color-mix(in srgb, var(--warn) 8%, transparent) 55%,
+      transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--warn) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--warn) 16%, transparent);
+  opacity: 1;
+}
+
+.editor-step-marker--active span {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #151515;
 }
 
 #rulesSource {
@@ -471,6 +541,8 @@ body {
   white-space: pre;
   tab-size: 2;
   caret-color: var(--accent);
+  position: relative;
+  z-index: 2;
 }
 
 #rulesSource::selection {
@@ -704,6 +776,22 @@ body {
 #viewer {
   max-width: 800px;
   margin: 0 auto;
+}
+
+#viewer .pe-step-card {
+  cursor: pointer;
+}
+
+#viewer .pe-step-card:focus-visible,
+#viewer .pe-step-card--selected {
+  outline: 2px solid var(--warn);
+  outline-offset: 3px;
+}
+
+#viewer .pe-step-card--selected {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent),
+    0 14px 34px color-mix(in srgb, var(--warn) 16%, transparent);
 }
 
 #viewer.viewer--macro {

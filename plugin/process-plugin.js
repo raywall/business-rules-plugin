@@ -457,7 +457,7 @@
       for (let localIndex = 0; localIndex < stage.steps.length; localIndex++) {
         const step = stage.steps[localIndex];
         await sleep(STEP_DELAY_MS);
-        appendStepCard(flowEl, step, stepIndex, totalSteps, localIndex === 0);
+        appendStepCard(flowEl, step, stepIndex, totalSteps, localIndex === 0, localIndex, stage);
         stepIndex++;
       }
     }
@@ -536,7 +536,7 @@
     });
   }
 
-  function appendStepCard(container, step, index, total, isFirstInStage = false) {
+  function appendStepCard(container, step, index, total, isFirstInStage = false, localIndex = index, stage = {}) {
     const cfg = STATUS[step.status] || { label: step.status, icon: '?', cls: 'gray' };
     const isLast = index === total - 1;
 
@@ -547,7 +547,17 @@
       container.appendChild(arrow);
     }
 
-    const card = el('div', { class: `pe-step-card pe-step-${cfg.cls} pe-entering` });
+    const card = el('div', {
+      class: `pe-step-card pe-step-${cfg.cls} pe-entering`,
+      role: 'button',
+      tabindex: '0',
+      title: 'Localizar este step no script',
+      'data-step-index': String(index),
+      'data-step-local-index': String(localIndex),
+      'data-step-name': step.name || '',
+      'data-stage-service': stage.service || '',
+      'data-stage-usecase': stage.usecase || '',
+    });
 
     /* Card header row */
     let headerHTML = `
@@ -618,6 +628,13 @@
     }
 
     card.innerHTML = headerHTML;
+    card.addEventListener('click', () => dispatchStepSelection(card, step, index, localIndex, stage));
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        dispatchStepSelection(card, step, index, localIndex, stage);
+      }
+    });
     container.appendChild(card);
 
     /* Trigger CSS entrance animation on next frame */
@@ -627,6 +644,19 @@
         card.classList.add('pe-entered');
       });
     });
+  }
+
+  function dispatchStepSelection(card, step, index, localIndex, stage) {
+    card.dispatchEvent(new CustomEvent('business-rules:step-select', {
+      bubbles: true,
+      detail: {
+        name: step.name || '',
+        index,
+        localIndex,
+        service: stage?.service || '',
+        usecase: stage?.usecase || '',
+      },
+    }));
   }
 
   function showFinalResult(elId, data, status) {

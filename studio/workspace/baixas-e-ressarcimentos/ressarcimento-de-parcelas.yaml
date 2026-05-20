@@ -1,0 +1,179 @@
+id: "22222222-2222-4222-a222-222222222222"
+name: Workflow Ressarcimento - Simulacao
+description: Simula validacoes, represamento, envio de pagamento, retorno e acerto contabil do ressarcimento.
+
+input:
+  event_name:
+    type: string
+    label: "Nome do evento"
+    example: "solicitacao_ressarcimento_recebida"
+  codigo_identificador_evento:
+    type: string
+    label: "Codigo Identificador Evento"
+    example: "EVT-RESS-001"
+  codigo_identificador_cliente:
+    type: string
+    label: "Cliente"
+    example: "12345678901"
+  codigo_convenio:
+    type: string
+    label: "Convenio"
+    example: "1341"
+  numero_operacao:
+    type: string
+    label: "Numero Operacao"
+    example: "1900000001"
+  numero_parcela:
+    type: number
+    label: "Numero Parcela"
+    example: 3.0
+  valor_ressarcimento:
+    type: number
+    label: "Valor Ressarcimento"
+    example: 45.50
+  valor_parcela:
+    type: number
+    label: "Valor Parcela"
+    example: 90.00
+  header_time_valid:
+    type: boolean
+    label: "Header Time Valido?"
+    example: true
+  is_duplicate_event:
+    type: boolean
+    label: "Evento Duplicado?"
+    example: false
+  calcular_juros:
+    type: boolean
+    label: "Calcular Juros?"
+    example: true
+
+mocks:
+  dados_basicos_cliente:
+    source: "GET /clientes/{input.codigo_identificador_cliente}"
+    data:
+      status: "ACTIVE"
+      ambiente: "DEV"
+      convenio_valido: true
+  limite_convenio:
+    source: "GET /convenios/{input.codigo_convenio}/limites"
+    data:
+      limite_ressarcimento: 1000.00
+      exige_analise_manual: false
+  regras_represamento:
+    source: "GET /regras/represamento/{input.codigo_convenio}"
+    data:
+      em_lista_bloqueio: false
+      motivo_bloqueio: ""
+  juros:
+    source: "GET /taxas/ipca"
+    data:
+      taxa_dia: 0.0002
+      dias_corridos: 10.0
+  retorno_pagamento:
+    source: "GET /retorno-pagamento/{input.codigo_identificador_evento}"
+    data:
+      situacao_pagamento: "EFETIVADA"
+      codigo_erro: ""
+      descricao_erro: ""
+      meio_pagamento: "TED"
+
+steps:
+  - name: Validar Entrada Minima
+    condition: "input.event_name != '' && input.codigo_identificador_evento != '' && input.codigo_identificador_cliente != '' && input.codigo_convenio != '' && input.numero_operacao != '' && input.valor_ressarcimento >= 0.0"
+    on_fail:
+      action: ABORT
+      message: "Solicitacao de ressarcimento invalida"
+
+  - name: Validar Header Time
+    condition: "input.header_time_valid == true"
+    on_fail:
+      action: ABORT
+      message: "Header time invalido para processamento"
+
+  - name: Validar Duplicidade
+    condition: "input.is_duplicate_event == false"
+    on_fail:
+      action: ABORT
+      message: "Solicitacao duplicada para {input.codigo_identificador_evento}"
+
+  - name: Carregar Dados Basicos
+    use_mock: dados_basicos_cliente
+    assign: cliente
+
+  - name: Cliente Elegivel
+    condition: "cliente.status == 'ACTIVE' && cliente.convenio_valido == true"
+    on_fail:
+      action: ABORT
+      message: "Cliente ou convenio nao elegivel para ressarcimento"
+
+  - name: Carregar Limite Convenio
+    use_mock: limite_convenio
+    assign: convenio
+
+  - name: Valor Dentro Limite
+    condition: "input.valor_ressarcimento <= convenio.limite_ressarcimento"
+    on_fail:
+      action: ABORT
+      message: "Valor acima do limite do convenio"
+
+  - name: Carregar Regras Represamento
+    use_mock: regras_represamento
+    assign: represamento
+
+  - name: Avaliar Represamento
+    condition: "represamento.em_lista_bloqueio == false"
+    on_fail:
+      action: ABORT
+      message: "Ressarcimento represado: {represamento.motivo_bloqueio}"
+
+  - name: Calcular Juros (Opcional)
+    use_mock: juros
+    assign: taxa_juros
+
+  - name: Montar Valor Final
+    assign: valor_final
+    compute:
+      - name: juros
+        expr: "input.calcular_juros == true ? (input.valor_ressarcimento * taxa_juros.taxa_dia * taxa_juros.dias_corridos) : 0.0"
+      - name: total
+        expr: "input.valor_ressarcimento + valor_final.juros"
+
+  - name: Simular Retorno Pagamento
+    use_mock: retorno_pagamento
+    assign: pagamento
+
+  - name: Regra Retentativa Pagamento
+    assign: retentativa
+    compute:
+      - name: retentar
+        expr: "pagamento.situacao_pagamento == 'NAO_EFETIVADA' && (pagamento.codigo_erro == '0' || pagamento.codigo_erro == '2' || pagamento.codigo_erro == '5000' || pagamento.codigo_erro == '5001' || pagamento.codigo_erro == '5002' || pagamento.codigo_erro == '5003' || pagamento.codigo_erro == '5004')"
+
+  - name: Resultado Final
+    result:
+      - name: workflow
+        expr: "'ressarcimento_parcelas'"
+      - name: event_id
+        expr: "input.codigo_identificador_evento"
+      - name: cliente
+        expr: "input.codigo_identificador_cliente"
+      - name: convenio
+        expr: "input.codigo_convenio"
+      - name: operacao
+        expr: "input.numero_operacao"
+      - name: parcela
+        expr: "input.numero_parcela"
+      - name: valor_original
+        expr: "input.valor_ressarcimento"
+      - name: juros
+        expr: "valor_final.juros"
+      - name: valor_total
+        expr: "valor_final.total"
+      - name: pagamento_situacao
+        expr: "pagamento.situacao_pagamento"
+      - name: pagamento_codigo_erro
+        expr: "pagamento.codigo_erro"
+      - name: retentar_pagamento
+        expr: "retentativa.retentar"
+      - name: status
+        expr: "pagamento.situacao_pagamento == 'EFETIVADA' ? 'EFETIVADO' : (retentativa.retentar ? 'AGUARDANDO_RETENTATIVA' : 'FALHA')"

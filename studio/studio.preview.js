@@ -1,5 +1,14 @@
 'use strict';
 
+document.addEventListener('business-rules:step-select', event => {
+  if (!el?.viewer || !el.viewer.contains(event.target)) return;
+  el.viewer.querySelectorAll('.pe-step-card--selected').forEach(card => {
+    card.classList.remove('pe-step-card--selected');
+  });
+  event.target?.closest?.('.pe-step-card')?.classList.add('pe-step-card--selected');
+  Editor.scrollToStep(event.detail || {});
+});
+
 /* ================================================================
    PLUGIN BRIDGE
    Detecta a API exposta pelo process-plugin.js e fornece uma função

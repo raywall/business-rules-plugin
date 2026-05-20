@@ -1,0 +1,178 @@
+id: "11111111-1111-4111-a111-111111111111"
+name: Workflow Baixa - Simulacao
+description: Simula decisoes de entrada, elegibilidade, roteamento e fechamento da baixa de parcelas.
+
+input:
+  event_name:
+    type: string
+    label: "Nome do evento"
+    example: "desconto_em_folha_recebido"
+  codigo_identificador_evento:
+    type: string
+    label: "Codigo Identificador Evento"
+    example: "EVT-BAIXA-001"
+  codigo_convenio:
+    type: string
+    label: "Convenio"
+    example: "1341"
+  codigo_cliente:
+    type: string
+    label: "Cliente"
+    example: "12345678901"
+  identificador_operacao_credito:
+    type: string
+    label: "Operacao Credito"
+    example: "1900000001"
+  valor_desconto:
+    type: number
+    label: "Valor Desconto"
+    example: 350.00
+  mes_referencia:
+    type: number
+    label: "Mes Referencia"
+    example: 5.0
+  ano_referencia:
+    type: number
+    label: "Ano Referencia"
+    example: 2026.0
+  numero_parcela:
+    type: number
+    label: "Numero Parcela"
+    example: 3.0
+  is_duplicate_event:
+    type: boolean
+    label: "Evento Duplicado?"
+    example: false
+  rescisao:
+    type: boolean
+    label: "Fluxo de Rescisao?"
+    example: false
+  alterar_meio_recebimento:
+    type: boolean
+    label: "Alterar Meio Recebimento?"
+    example: true
+
+mocks:
+  operacao_contexto:
+    source: "GET /consulta-contratos-custodia/v1/clientes/{input.codigo_cliente}/operacoes/{input.identificador_operacao_credito}"
+    data:
+      situacao: "ATIVA"
+      custodia: "SF"
+      parcelas_abertas:
+        - numero: 1
+          saldo: 120.00
+          data_vencimento: "2026-03-10"
+        - numero: 2
+          saldo: 180.00
+          data_vencimento: "2026-04-10"
+        - numero: 3
+          saldo: 90.00
+          data_vencimento: "2026-05-10"
+  estrategia_convenio:
+    source: "GET /parametros/convenio/{input.codigo_convenio}"
+    data:
+      processador: "inss_341"
+      filtro_f5_habilitado: true
+  regras_ressarcimento:
+    source: "GET /regras/ressarcimento/eligibilidade"
+    data:
+      gerar_ressarcimento_quando_sobra: true
+      valor_minimo_sobra: 0.01
+
+steps:
+  - name: Validar Entrada Minima
+    condition: "input.event_name != '' && input.codigo_identificador_evento != '' && input.codigo_convenio != '' && input.codigo_cliente != '' && input.identificador_operacao_credito != '' && input.valor_desconto > 0.0 && input.mes_referencia > 0.0 && input.ano_referencia > 0.0"
+    on_fail:
+      action: ABORT
+      message: "Evento de baixa invalido: faltam campos obrigatorios"
+
+  - name: Validar Duplicidade
+    condition: "input.is_duplicate_event == false"
+    on_fail:
+      action: ABORT
+      message: "Evento duplicado para {input.codigo_identificador_evento}"
+
+  - name: Carregar Operacao
+    use_mock: operacao_contexto
+    assign: operacao
+
+  - name: Operacao Ativa
+    condition: "operacao.situacao != 'CANCELADA'"
+    on_fail:
+      action: ABORT
+      message: "Operacao cancelada: baixa nao deve prosseguir"
+
+  - name: Carregar Parametros Convenio
+    use_mock: estrategia_convenio
+    assign: convenio
+
+  - name: Classificar Camada INSS
+    assign: camada
+    compute:
+      - name: inss_especifico
+        expr: "input.codigo_convenio == '1341' || input.codigo_convenio == '1029'"
+      - name: processador
+        expr: "convenio.processador"
+
+  - name: Calcular Distribuicao Desconto
+    assign: distribuicao
+    compute:
+      - name: saldo_total
+        expr: "operacao.parcelas_abertas[0].saldo + operacao.parcelas_abertas[1].saldo + operacao.parcelas_abertas[2].saldo"
+      - name: valor_aplicado
+        expr: "input.valor_desconto <= (operacao.parcelas_abertas[0].saldo + operacao.parcelas_abertas[1].saldo + operacao.parcelas_abertas[2].saldo) ? input.valor_desconto : (operacao.parcelas_abertas[0].saldo + operacao.parcelas_abertas[1].saldo + operacao.parcelas_abertas[2].saldo)"
+      - name: valor_sobra
+        expr: "input.valor_desconto - distribuicao.valor_aplicado"
+      - name: baixa_integral
+        expr: "input.valor_desconto >= (operacao.parcelas_abertas[0].saldo + operacao.parcelas_abertas[1].saldo + operacao.parcelas_abertas[2].saldo)"
+
+  - name: Carregar Regra Ressarcimento
+    use_mock: regras_ressarcimento
+    assign: regra_ressarc
+
+  - name: Decidir Geracao Ressarcimento
+    assign: ressarcimento
+    compute:
+      - name: gerar
+        expr: "regra_ressarc.gerar_ressarcimento_quando_sobra == true && distribuicao.valor_sobra > regra_ressarc.valor_minimo_sobra"
+      - name: valor
+        expr: "distribuicao.valor_sobra > 0.0 ? distribuicao.valor_sobra : 0.0"
+
+  - name: Rota Rescisao
+    condition: "input.rescisao == false"
+    on_fail:
+      action: SKIP
+      message: "Fluxo marcado como rescisao: seguir para processador de rescisao"
+
+  - name: Alterar Meio Recebimento
+    condition: "input.alterar_meio_recebimento == true"
+    on_fail:
+      action: SKIP
+      message: "Sem alteracao de meio recebimento neste cenario"
+
+  - name: Resultado Final
+    result:
+      - name: workflow
+        expr: "'baixa_parcelas'"
+      - name: status
+        expr: "'PROCESSADO'"
+      - name: event_id
+        expr: "input.codigo_identificador_evento"
+      - name: convenio
+        expr: "input.codigo_convenio"
+      - name: cliente
+        expr: "input.codigo_cliente"
+      - name: operacao
+        expr: "input.identificador_operacao_credito"
+      - name: baixa_integral
+        expr: "distribuicao.baixa_integral"
+      - name: valor_aplicado
+        expr: "distribuicao.valor_aplicado"
+      - name: valor_sobra
+        expr: "distribuicao.valor_sobra"
+      - name: gerar_ressarcimento
+        expr: "ressarcimento.gerar"
+      - name: valor_ressarcimento
+        expr: "ressarcimento.valor"
+      - name: camada_inss_especifica
+        expr: "camada.inss_especifico"

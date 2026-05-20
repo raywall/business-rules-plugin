@@ -5,10 +5,13 @@
    ================================================================ */
 const Editor = {
   _lintTimer: null,
+  _stepBlocks: [],
+  _activeStepKey: null,
 
   init() {
     el.source.addEventListener('input', () => {
       this.syncLineNumbers();
+      this.updateStepMarkers();
       this.updateStats();
       this.scheduleLint();
       if (state.workspace.rootHandle && state.current.fileHandle) {
@@ -18,7 +21,10 @@ const Editor = {
 
     el.source.addEventListener('scroll', () => {
       el.lineNumbers.scrollTop = el.source.scrollTop;
+      this.positionStepMarkers();
     });
+
+    window.addEventListener('resize', () => this.positionStepMarkers());
 
     el.source.addEventListener('keydown', e => {
       if (e.key === 'Tab') {
@@ -28,10 +34,12 @@ const Editor = {
         el.source.value = v.slice(0, s) + '  ' + v.slice(el.source.selectionEnd);
         el.source.selectionStart = el.source.selectionEnd = s + 2;
         this.syncLineNumbers();
+        this.updateStepMarkers();
       }
     });
 
     this.syncLineNumbers();
+    this.updateStepMarkers();
     this.updateStats();
     this.lint();
   },
@@ -83,11 +91,150 @@ const Editor = {
     el.source.value = text;
     el.source.scrollTop = 0;
     this.syncLineNumbers();
+    this.updateStepMarkers();
     this.updateStats();
     this.lint();
   },
 
   get() { return el.source.value; },
+
+  updateStepMarkers() {
+    this._stepBlocks = this.findStepBlocks(el.source.value);
+    this.renderStepMarkers();
+  },
+
+  findStepBlocks(text) {
+    const lines = text.split('\n');
+    const stepsLine = lines.findIndex(line => /^steps\s*:\s*(?:#.*)?$/.test(line.trim()));
+    if (stepsLine < 0) return [];
+
+    const blocks = [];
+    let inSteps = false;
+    let stepsIndent = 0;
+    let current = null;
+
+    for (let index = stepsLine; index < lines.length; index++) {
+      const raw = lines[index];
+      const trimmed = raw.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const indent = raw.match(/^\s*/)[0].length;
+
+      if (!inSteps) {
+        stepsIndent = indent;
+        inSteps = true;
+        continue;
+      }
+
+      if (indent <= stepsIndent && !trimmed.startsWith('- ')) break;
+
+      const stepMatch = raw.match(/^(\s*)-\s+name\s*:\s*(.+?)\s*(?:#.*)?$/);
+      if (stepMatch) {
+        if (current) {
+          current.endLine = index;
+          blocks.push(current);
+        }
+        const name = this.cleanYamlScalar(stepMatch[2]);
+        current = {
+          index: blocks.length,
+          key: this.stepKey(blocks.length, name),
+          name,
+          startLine: index + 1,
+          endLine: index + 1,
+        };
+      }
+    }
+
+    if (current) {
+      current.endLine = lines.length;
+      blocks.push(current);
+    }
+    return blocks;
+  },
+
+  cleanYamlScalar(value) {
+    const trimmed = String(value || '').trim();
+    return trimmed.replace(/^['"]|['"]$/g, '');
+  },
+
+  stepKey(index, name) {
+    return `${index}:${String(name || '').trim().toLowerCase()}`;
+  },
+
+  renderStepMarkers() {
+    if (!el.stepOverlay) return;
+    el.stepOverlay.innerHTML = '';
+    this._stepBlocks.forEach(block => {
+      const marker = document.createElement('div');
+      marker.className = 'editor-step-marker';
+      marker.dataset.stepKey = block.key;
+      marker.innerHTML = `<span>${block.index + 1}</span>`;
+      el.stepOverlay.appendChild(marker);
+    });
+    this.positionStepMarkers();
+  },
+
+  positionStepMarkers() {
+    if (!el.stepOverlay) return;
+    const sourceStyle = window.getComputedStyle(el.source);
+    const lineHeight = Number.parseFloat(sourceStyle.lineHeight) || 19.2;
+    const paddingTop = Number.parseFloat(sourceStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(sourceStyle.paddingBottom) || 0;
+    const lineNumbersWidth = el.lineNumbers?.getBoundingClientRect().width || 0;
+
+    el.stepOverlay.style.left = `${lineNumbersWidth}px`;
+    el.stepOverlay.style.top = '0px';
+    el.stepOverlay.style.bottom = '0px';
+
+    el.stepOverlay.querySelectorAll('.editor-step-marker').forEach(marker => {
+      const block = this._stepBlocks.find(item => item.key === marker.dataset.stepKey);
+      if (!block) return;
+      const top = paddingTop + ((block.startLine - 1) * lineHeight) - el.source.scrollTop;
+      const height = Math.max(lineHeight, ((block.endLine - block.startLine + 1) * lineHeight) - paddingBottom);
+      marker.style.top = `${top}px`;
+      marker.style.height = `${height}px`;
+      marker.classList.toggle('editor-step-marker--active', block.key === this._activeStepKey);
+    });
+  },
+
+  scrollToStep(step) {
+    const block = this.resolveStepBlock(step);
+    if (!block) return false;
+
+    this._activeStepKey = block.key;
+    this.positionStepMarkers();
+
+    const sourceStyle = window.getComputedStyle(el.source);
+    const lineHeight = Number.parseFloat(sourceStyle.lineHeight) || 19.2;
+    const paddingTop = Number.parseFloat(sourceStyle.paddingTop) || 0;
+    const targetTop = Math.max(0, ((block.startLine - 1) * lineHeight) - (el.source.clientHeight * 0.25) + paddingTop);
+
+    el.source.focus({ preventScroll: true });
+    el.source.scrollTo({ top: targetTop, behavior: 'smooth' });
+    this.setSelectionForLine(block.startLine);
+    return true;
+  },
+
+  resolveStepBlock(step) {
+    if (!this._stepBlocks.length) this.updateStepMarkers();
+    const service = String(step?.service || '').trim();
+    const usecase = String(step?.usecase || '').trim();
+    if (service && state.current.serviceName && service !== state.current.serviceName) return null;
+    if (usecase && state.current.fileName && usecase !== state.current.fileName) return null;
+
+    const name = String(step?.name || '').trim().toLowerCase();
+    const absoluteIndex = Number.parseInt(step?.index ?? '', 10);
+    const localIndex = Number.parseInt(step?.localIndex ?? '', 10);
+
+    if (Number.isFinite(localIndex)) return this._stepBlocks[localIndex] || null;
+    if (Number.isFinite(absoluteIndex) && this._stepBlocks[absoluteIndex]) return this._stepBlocks[absoluteIndex];
+    return this._stepBlocks.find(block => block.name.trim().toLowerCase() === name) || null;
+  },
+
+  setSelectionForLine(lineNumber) {
+    const lines = el.source.value.split('\n');
+    const offset = lines.slice(0, Math.max(0, lineNumber - 1)).reduce((sum, line) => sum + line.length + 1, 0);
+    el.source.setSelectionRange(offset, Math.min(el.source.value.length, offset + (lines[lineNumber - 1] || '').length));
+  },
 
   markDirty() {
     if (!state.dirty) { state.dirty = true; WorkspaceUI.render(); }
